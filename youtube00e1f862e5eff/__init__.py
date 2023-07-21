@@ -17,6 +17,7 @@ from exorde_data import (
     Domain,
     ExternalId
 )
+import logging
 """
 - Fetch https://www.youtube.com/results?search_query={KEYWORD} example: https://www.youtube.com/results?search_query=bitcoin
 - Get all video URLs + their titles

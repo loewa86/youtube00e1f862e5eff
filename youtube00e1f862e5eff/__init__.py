@@ -227,7 +227,8 @@ async def query(parameters: dict) -> AsyncGenerator[Item, None]:
         selected_keyword = randomly_replace_or_choose_keyword(selected_keyword, p=PROBABILITY_DEFAULT_KEYWORD)
         selected_keyword = convert_spaces_to_plus(selected_keyword)
     except Exception as e:
-        logging.exception(f"[Youtube parameters] parameters: {parameters}. Error when reading keyword: {e}")
+        logging.exception(f"[Youtube parameters] parameters: {parameters}. Error when reading keyword: {e}")        
+        selected_keyword = randomly_replace_or_choose_keyword("", p=1)
 
     logging.info(f"[Youtube] - Scraping latest comments posted less than {max_oldness_seconds} seconds ago, on youtube videos related to keyword: {selected_keyword}.")
     async for item in scrape(selected_keyword, max_oldness_seconds, maximum_items_to_collect):

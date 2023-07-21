@@ -137,19 +137,21 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect):
                         title = video['title']['runs'][0]['text']
                         url_suffix = video['navigationEndpoint']['commandMetadata']['webCommandMetadata']['url']
                         full_url = f"https://www.youtube.com{url_suffix}"
-                        print(f"Title: {title}, URL: {full_url}")
                         urls.append(full_url)
                         titles.append(title)
 
         except json.JSONDecodeError:
-            print("[Youtube] Invalid JSON data in var ytInitialData.")
+            logging.info("[Youtube] Invalid JSON data in var ytInitialData.")
     else:
-        print("[Youtube] No ytInitialData found.")
+        logging.info("[Youtube] No ytInitialData found.")
 
     yielded_items = 0
     urls = extract_url_parts(urls)
+    URLs_remaining_trials = 10
     for url, title in zip(urls, titles):
-        print("URL: ",url)
+        # skip URL randomly with 15% chance
+        if random.random() < 0.15:
+            continue
         comments = yt_comment_dl.get_comments_from_url(url, sort_by=SORT_BY_RECENT)
         youtube_video_url = url
         for comment in islice(comments, 10):
@@ -160,7 +162,7 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect):
             comment_datetime = convert_timestamp(comment_timestamp)
             if is_within_timeframe_seconds(comment_timestamp, max_oldness_seconds):
                 comment_obj = {'url':comment_url, 'content':comment_content, 'title':title, 'created_at':comment_datetime, 'external_id':comment_id}
-                print("[Youtube] found new comment: ",comment_obj)
+                logging.info("[Youtube] found new comment: ",comment_obj)
                 yield Item(
                     content=Content(str(comment_content)),
                     created_at=CreatedAt(str(comment_obj['created_at'])),
@@ -172,6 +174,10 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect):
                 yielded_items += 1
                 if yielded_items >= maximum_items_to_collect:
                     break
+        
+        URLs_remaining_trials -= 1
+        if URLs_remaining_trials <= 0:
+            break
             
 def randomly_replace_or_choose_keyword(input_string, p):
     if random.random() < p:

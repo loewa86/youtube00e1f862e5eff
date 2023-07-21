@@ -17,8 +17,6 @@ from exorde_data import (
     Domain,
     ExternalId
 )
-import logging
-
 """
 - Fetch https://www.youtube.com/results?search_query={KEYWORD} example: https://www.youtube.com/results?search_query=bitcoin
 - Get all video URLs + their titles
@@ -31,9 +29,31 @@ import logging
 global MAX_EXPIRATION_SECONDS
 MAX_EXPIRATION_SECONDS = 360
 
-yt_comment_dl = YoutubeCommentDownloader()
+PROBABILITY_ADDING_SUFFIX = 0.8
+PROBABILITY_DEFAULT_KEYWORD = 0.5
 
-# GLOBAL VARIABLES
+DEFAULT_OLDNESS_SECONDS = 360
+DEFAULT_MAXIMUM_ITEMS = 25
+DEFAULT_MIN_POST_LENGTH = 10
+
+DEFAULT_KEYWORDS = \
+["news", "news", "press", "silentsunday", "saturday", "monday", "tuesday" "bitcoin", "ethereum", "eth", "btc", "usdt", "cryptocurrency", "solana",
+"doge", "cardano", "monero", "polkadot", "ripple", "xrp", "stablecoin", "defi", "cbdc", "nasdaq", "sp500",  "BNB", "ETF", "SpotETF", "iphone", "it",
+"usbc", "eu", "hack", "staking", "proof of work", "hacker", "hackers", "virtualreality", "metaverse", "tech", "technology", "art", "game", "trading", "groundnews", "breakingnews",
+"Gensler", "FED", "SEC", "IMF", "Macron", "Biden", "Putin", "Zelensky", "Trump", "legal", "bitcoiners", "bitcoincash", "ethtrading", "cryptonews",
+"cryptomarket", "cryptoart", "CPTPP", "brexit", "trade", "economy", "USpolitics", "UKpolitics", "NHL", "computer", "computerscience", "stem", "gpt4",
+"billgates", "ai", "chatgpt", "openai", "wissen", "french", "meat", "support", "aid", "mutualaid", "mastodon", "bluesky", "animal", "animalrights",
+"BitcoinETF", "Crypto", "altcoin", "DeFi", "GameFi", "web3", "web3", "trade",  "NFT", "NFTs", "cryptocurrencies", "Cryptos", "reddit", "elonmusk",
+"politics", "business", "twitter", "digital", "airdrop", "gamestop", "finance", "liquidity","token", "economy", "markets", "stocks", "crisis", "gpt", "gpt3",
+"russia", "war", "ukraine", "luxury", "LVMH", "Elonmusk", "conflict", "bank", "Gensler", "emeutes", "FaceID", "Riot", "riots", "Franceriot", "France",
+"UnitedStates", "USA", "China", "Germany", "Europe", "Canada", "Mexico", "Brazil", "price", "market", "NYSE","NASDAQ", "CAC", "CAC40", "G20", "OilPrice", 
+"FTSE", "NYSE", "WallStreet", "money", "forex", "trading", "currency", "USD", "WarrenBuffett", "BlackRock", "Berkshire", "IPO", "Apple", "Tesla","Alphabet",
+ "FBstock","debt", "bonds", "XAUUSD", "SP500", "DowJones", "satoshi", "shorts", "live", "algotrading", "tradingalgoritmico", "prorealtime", "ig", "igmarkets", 
+ "win", "trading", "trader", "algorithm", "cfdauto", "algos", "bottrading", "tradingrobot", "robottrading", "prorealtimetrading", "algorithmictrading",
+"usa ", "canada ", "denmark", "russia", "japan", "italy", "spain", "uk", "eu", "social", "iran", "war","socialism", "Biden", "democracy", "justice", "canada", "leftist",
+"election", "vote", "protocol", "network", "org", "organization", "charity", "money", "scam", "token", "tokens", "ecosystem",
+"rightwing",  "DAX", "NASDAQ", "RUSSELL", "RUSSELL2000", "GOLD", "XAUUSD", "DAX40", "IBEX", "IBEX35", "oil", "crude", "crudeoil", "us500", "russell", "russell2000"]
+
 USER_AGENT_LIST = [
     'Mozilla/5.0 (iPad; CPU OS 12_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36',
@@ -44,10 +64,8 @@ USER_AGENT_LIST = [
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Safari/605.1.15',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Safari/605.1.15'
 ]
-DEFAULT_OLDNESS_SECONDS = 360
-DEFAULT_MAXIMUM_ITEMS = 25
-DEFAULT_MIN_POST_LENGTH = 10
 
+yt_comment_dl = YoutubeCommentDownloader()
 
 def is_within_timeframe_seconds(input_timestamp, timeframe_sec):
     input_timestamp = int(input_timestamp)
@@ -72,9 +90,24 @@ def convert_timestamp(timestamp):
     formatted_dt = dt.strftime("%Y-%m-%dT%H:%M:%S.00Z")
     return formatted_dt
 
+def randomly_add_search_filter(input_URL, p):
+    suffixes = [
+        "&sp=CAI%253D",      # newest_videos_suffix
+        "&sp=CAASAhAB",      # relevance_videos_suffix
+        "&sp=EgQIARAB",      # last_hour_videos_suffix
+        "&sp=EgQIAhAB"       # last_day_videos_suffix
+    ]
+    if random.random() < p:
+        # Choose one of the suffixes based on probability distribution
+        chosen_suffix = random.choices(suffixes, weights=[0.25, 0.25, 0.4, 0.1])[0]
+        return input_URL + chosen_suffix
+    else:
+        return input_URL
+
 async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect):
     URL = "https://www.youtube.com/results?search_query={}".format(keyword)
-    print("Youtube URL: ",URL)
+    URL = randomly_add_search_filter(URL, p= PROBABILITY_ADDING_SUFFIX )
+    logging.info(f"[Youtube] Looking at video URL: {URL}")
     response = requests.get(URL, headers={'User-Agent': random.choice(USER_AGENT_LIST)}, timeout=8.0)
 
     soup = BeautifulSoup(response.text, 'html.parser')
@@ -108,9 +141,9 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect):
                         titles.append(title)
 
         except json.JSONDecodeError:
-            print("[Youtube-text] Invalid JSON data in var ytInitialData.")
+            print("[Youtube] Invalid JSON data in var ytInitialData.")
     else:
-        print("[Youtube-text] No ytInitialData found.")
+        print("[Youtube] No ytInitialData found.")
 
     yielded_items = 0
     urls = extract_url_parts(urls)
@@ -126,7 +159,7 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect):
             comment_datetime = convert_timestamp(comment_timestamp)
             if is_within_timeframe_seconds(comment_timestamp, max_oldness_seconds):
                 comment_obj = {'url':comment_url, 'content':comment_content, 'title':title, 'created_at':comment_datetime, 'external_id':comment_id}
-                print("[Youtube-text] found new comment: ",comment_obj)
+                print("[Youtube] found new comment: ",comment_obj)
                 yield Item(
                     content=Content(str(comment_content)),
                     created_at=CreatedAt(str(comment_obj['created_at'])),
@@ -139,6 +172,11 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect):
                 if yielded_items >= maximum_items_to_collect:
                     break
             
+def randomly_replace_or_choose_keyword(input_string, p):
+    if random.random() < p:
+        return input_string
+    else:
+        return random.choice(DEFAULT_KEYWORDS)
 
 def read_parameters(parameters):
     # Check if parameters is not empty or None
@@ -167,13 +205,25 @@ def read_parameters(parameters):
     return max_oldness_seconds, maximum_items_to_collect, min_post_length
 
 
+def convert_spaces_to_plus(input_string):
+    return input_string.replace(" ", "+")
+
 async def query(parameters: dict) -> AsyncGenerator[Item, None]:
     yielded_items = 0
     max_oldness_seconds, maximum_items_to_collect, min_post_length = read_parameters(parameters)
-    selected_keyword = parameters['keyword']
-    logging.info(f"[Youtube] - Scraping ideas posted less than {max_oldness_seconds} seconds ago.")
+    selected_keyword = ""
+    
+    try:
+        if "keyword" in parameters:
+            selected_keyword = parameters["keyword"]
+        # replace it, with some probability, by a main default keyword
+        selected_keyword = randomly_replace_or_choose_keyword(selected_keyword, p=PROBABILITY_DEFAULT_KEYWORD)
+        selected_keyword = convert_spaces_to_plus(selected_keyword)
+    except Exception as e:
+        logging.exception(f"[Youtube parameters] parameters: {parameters}. Error when reading keyword: {e}")
 
-    async for item in scrape(selected_keyword, max_oldness_seconds):
+    logging.info(f"[Youtube] - Scraping latest comments posted less than {max_oldness_seconds} seconds ago, on youtube videos related to keyword: {selected_keyword}.")
+    async for item in scrape(selected_keyword, max_oldness_seconds, maximum_items_to_collect):
         yielded_items += 1
         yield item
         if yielded_items >= maximum_items_to_collect:

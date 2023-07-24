@@ -29,9 +29,9 @@ import logging
 
 global MAX_EXPIRATION_SECONDS
 MAX_EXPIRATION_SECONDS = 360
-
-PROBABILITY_ADDING_SUFFIX = 0.8
-PROBABILITY_DEFAULT_KEYWORD = 0.5
+MAX_TOTAL_COMMENTS_TO_CHECK = 500
+PROBABILITY_ADDING_SUFFIX = 0.75
+PROBABILITY_DEFAULT_KEYWORD = 0.3
 
 DEFAULT_OLDNESS_SECONDS = 360
 DEFAULT_MAXIMUM_ITEMS = 25
@@ -39,21 +39,21 @@ DEFAULT_MIN_POST_LENGTH = 10
 
 DEFAULT_KEYWORDS = \
 ["news", "news", "press", "silentsunday", "saturday", "monday", "tuesday" "bitcoin", "ethereum", "eth", "btc", "usdt", "cryptocurrency", "solana",
-"doge", "cardano", "monero", "polkadot", "ripple", "xrp", "stablecoin", "defi", "cbdc", "nasdaq", "sp500",  "BNB", "ETF", "SpotETF", "iphone", "it",
+"doge", "cardano", "monero", "dogecoin", "polkadot", "ripple", "xrp", "stablecoin", "defi", "cbdc", "nasdaq", "sp500",  "BNB", "ETF", "SpotETF", "iphone", "it",
 "usbc", "eu", "hack", "staking", "proof of work", "hacker", "hackers", "virtualreality", "metaverse", "tech", "technology", "art", "game", "trading", "groundnews", "breakingnews",
 "Gensler", "FED", "SEC", "IMF", "Macron", "Biden", "Putin", "Zelensky", "Trump", "legal", "bitcoiners", "bitcoincash", "ethtrading", "cryptonews",
 "cryptomarket", "cryptoart", "CPTPP", "brexit", "trade", "economy", "USpolitics", "UKpolitics", "NHL", "computer", "computerscience", "stem", "gpt4",
 "billgates", "ai", "chatgpt", "openai", "wissen", "french", "meat", "support", "aid", "mutualaid", "mastodon", "bluesky", "animal", "animalrights",
-"BitcoinETF", "Crypto", "altcoin", "DeFi", "GameFi", "web3", "web3", "trade",  "NFT", "NFTs", "cryptocurrencies", "Cryptos", "reddit", "elonmusk",
+"BitcoinETF", "Crypto", "altcoin", "DeFi", "GameFi", "web3", "web3", "trade",  "NFT", "NFTs", "cryptocurrencies", "Cryptos", "reddit", "elon musk",
 "politics", "business", "twitter", "digital", "airdrop", "gamestop", "finance", "liquidity","token", "economy", "markets", "stocks", "crisis", "gpt", "gpt3",
-"russia", "war", "ukraine", "luxury", "LVMH", "Elonmusk", "conflict", "bank", "Gensler", "emeutes", "FaceID", "Riot", "riots", "Franceriot", "France",
+"russia", "war", "ukraine", "luxury", "LVMH", "Elon musk", "conflict", "bank", "Gensler", "emeutes", "FaceID", "Riot", "riots", "riot", "France",
 "UnitedStates", "USA", "China", "Germany", "Europe", "Canada", "Mexico", "Brazil", "price", "market", "NYSE","NASDAQ", "CAC", "CAC40", "G20", "OilPrice", 
 "FTSE", "NYSE", "WallStreet", "money", "forex", "trading", "currency", "USD", "WarrenBuffett", "BlackRock", "Berkshire", "IPO", "Apple", "Tesla","Alphabet",
  "FBstock","debt", "bonds", "XAUUSD", "SP500", "DowJones", "satoshi", "shorts", "live", "algotrading", "tradingalgoritmico", "prorealtime", "ig", "igmarkets", 
  "win", "trading", "trader", "algorithm", "cfdauto", "algos", "bottrading", "tradingrobot", "robottrading", "prorealtimetrading", "algorithmictrading",
 "usa ", "canada ", "denmark", "russia", "japan", "italy", "spain", "uk", "eu", "social", "iran", "war","socialism", "Biden", "democracy", "justice", "canada", "leftist",
 "election", "vote", "protocol", "network", "org", "organization", "charity", "money", "scam", "token", "tokens", "ecosystem",
-"rightwing",  "DAX", "NASDAQ", "RUSSELL", "RUSSELL2000", "GOLD", "XAUUSD", "DAX40", "IBEX", "IBEX35", "oil", "crude", "crudeoil", "us500", "russell", "russell2000"]
+"rightwing",  "DAX", "NASDAQ", "RUSSELL", "RUSSELL2000", "GOLD", "XAUUSD", "DAX40", "IBEX", "IBEX35", "oil", "crude", "crudeoil", "us500", "russell", "russell2000", "worldcoin", "sam atlman", "elon musk"]
 
 USER_AGENT_LIST = [
     'Mozilla/5.0 (iPad; CPU OS 12_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
@@ -100,12 +100,12 @@ def randomly_add_search_filter(input_URL, p):
     ]
     if random.random() < p:
         # Choose one of the suffixes based on probability distribution
-        chosen_suffix = random.choices(suffixes, weights=[0.25, 0.25, 0.4, 0.1])[0]
+        chosen_suffix = random.choices(suffixes, weights=[0.25, 0.40, 0.15, 0.2])[0]
         return input_URL + chosen_suffix
     else:
         return input_URL
 
-async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect):
+async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_total_comments_to_check):
     URL = "https://www.youtube.com/results?search_query={}".format(keyword)
     URL = randomly_add_search_filter(URL, p= PROBABILITY_ADDING_SUFFIX )
     logging.info(f"[Youtube] Looking at video URL: {URL}")
@@ -113,12 +113,14 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect):
 
     soup = BeautifulSoup(response.text, 'html.parser')
 
+    URLs_remaining_trials = 10
     # Find the script tag containing the JSON data
     script_tag = soup.find('script', text=lambda text: text and 'var ytInitialData' in text)
 
     urls = []
     titles = []
     if script_tag:
+        await asyncio.sleep(0.2) 
         # Extract the JSON content
         json_str = script_tag.text
         start_index = json_str.find('var ytInitialData = ') + len('var ytInitialData = ')
@@ -146,15 +148,20 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect):
         logging.info("[Youtube] No ytInitialData found.")
 
     yielded_items = 0
+    nb_comments_checked = 0
     urls = extract_url_parts(urls)
-    URLs_remaining_trials = 10
     for url, title in zip(urls, titles):
-        # skip URL randomly with 15% chance
-        if random.random() < 0.15:
+        await asyncio.sleep(0.2) 
+        # skip URL randomly with 10% chance
+        if random.random() < 0.1:
             continue
         comments = yt_comment_dl.get_comments_from_url(url, sort_by=SORT_BY_RECENT)
         youtube_video_url = url
-        for comment in islice(comments, 10):
+        comments_list = list(comments)
+        nb_comments = len(comments_list)
+        nb_comments_checked += nb_comments
+        logging.info(f"[Youtube] checking the {nb_comments} comments on video: {title}")
+        for comment in comments_list:
             comment_timestamp = int(round(comment['time_parsed'],1))
             comment_url = youtube_video_url + "&lc=" +  comment['cid']
             comment_id = comment['cid']
@@ -174,6 +181,8 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect):
                 yielded_items += 1
                 if yielded_items >= maximum_items_to_collect:
                     break
+        if nb_comments_checked >= max_total_comments_to_check:
+            break
         
         URLs_remaining_trials -= 1
         if URLs_remaining_trials <= 0:
@@ -203,13 +212,26 @@ def read_parameters(parameters):
         except KeyError:
             min_post_length = DEFAULT_MIN_POST_LENGTH
 
+        try:
+            probability_to_select_default_kws = parameters.get("probability_to_select_default_kws", PROBABILITY_DEFAULT_KEYWORD)
+        except KeyError:
+            probability_to_select_default_kws = PROBABILITY_DEFAULT_KEYWORD
+
+        try:
+            max_total_comments_to_check = parameters.get("max_total_comments_to_check", MAX_TOTAL_COMMENTS_TO_CHECK)
+        except KeyError:
+            max_total_comments_to_check = MAX_TOTAL_COMMENTS_TO_CHECK
+
+
     else:
         # Assign default values if parameters is empty or None
         max_oldness_seconds = DEFAULT_OLDNESS_SECONDS
         maximum_items_to_collect = DEFAULT_MAXIMUM_ITEMS
         min_post_length = DEFAULT_MIN_POST_LENGTH
+        probability_to_select_default_kws = PROBABILITY_DEFAULT_KEYWORD
+        max_total_comments_to_check = MAX_TOTAL_COMMENTS_TO_CHECK
 
-    return max_oldness_seconds, maximum_items_to_collect, min_post_length
+    return max_oldness_seconds, maximum_items_to_collect, min_post_length, probability_to_select_default_kws, max_total_comments_to_check
 
 
 def convert_spaces_to_plus(input_string):
@@ -217,21 +239,21 @@ def convert_spaces_to_plus(input_string):
 
 async def query(parameters: dict) -> AsyncGenerator[Item, None]:
     yielded_items = 0
-    max_oldness_seconds, maximum_items_to_collect, min_post_length = read_parameters(parameters)
+    max_oldness_seconds, maximum_items_to_collect, min_post_length, probability_to_select_default_kws, max_total_comments_to_check  = read_parameters(parameters)
     selected_keyword = ""
     
     try:
         if "keyword" in parameters:
             selected_keyword = parameters["keyword"]
         # replace it, with some probability, by a main default keyword
-        selected_keyword = randomly_replace_or_choose_keyword(selected_keyword, p=PROBABILITY_DEFAULT_KEYWORD)
+        selected_keyword = randomly_replace_or_choose_keyword(selected_keyword, p=probability_to_select_default_kws)
         selected_keyword = convert_spaces_to_plus(selected_keyword)
     except Exception as e:
         logging.exception(f"[Youtube parameters] parameters: {parameters}. Error when reading keyword: {e}")        
         selected_keyword = randomly_replace_or_choose_keyword("", p=1)
 
     logging.info(f"[Youtube] - Scraping latest comments posted less than {max_oldness_seconds} seconds ago, on youtube videos related to keyword: {selected_keyword}.")
-    async for item in scrape(selected_keyword, max_oldness_seconds, maximum_items_to_collect):
+    async for item in scrape(selected_keyword, max_oldness_seconds, maximum_items_to_collect, max_total_comments_to_check):
         yielded_items += 1
         yield item
         if yielded_items >= maximum_items_to_collect:

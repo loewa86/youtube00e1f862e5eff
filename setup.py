@@ -8,8 +8,8 @@ setup(
         "lxml",
         "exorde_data",
         "aiohttp",
-        "HTMLParser",
-        "youtube_comment_downloader==0.1.68"
+        "dateparser",
+        "HTMLParser"
     ],
     extras_require={"dev": ["pytest", "pytest-cov", "pytest-asyncio"]},
 )

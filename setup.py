@@ -8,7 +8,8 @@ setup(
         "lxml",
         "exorde_data",
         "aiohttp",
-        "dateparser",
+        "dateparser>=1.1.3",
+        "requests>=2.27.1",
         "HTMLParser"
     ],
     extras_require={"dev": ["pytest", "pytest-cov", "pytest-asyncio"]},

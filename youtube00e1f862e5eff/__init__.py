@@ -1,4 +1,7 @@
-
+import re
+from typing import AsyncGenerator
+import aiohttp
+import dateparser
 import time
 import asyncio
 import requests
@@ -6,9 +9,7 @@ import random
 import json
 from bs4 import BeautifulSoup
 from typing import AsyncGenerator
-from datetime import datetime, timedelta
-from itertools import islice
-from youtube_comment_downloader import * #youtube_comment_downloader==0.1.68
+from datetime import datetime
 from exorde_data import (
     Item,
     Content,
@@ -19,6 +20,165 @@ from exorde_data import (
     ExternalId
 )
 import logging
+
+"""
+- Fetch https://www.youtube.com/results?search_query={KEYWORD} example: https://www.youtube.com/results?search_query=bitcoin
+- Get all video URLs + their titles
+- use youtube-comment library to extract all comments (with id, timestamp, and text)
+- rebuild comment URLs from id, select those with recent timestamp
+- add title to comment text (as first sentence).
+- that's all folks
+"""
+
+YOUTUBE_VIDEO_URL = 'https://www.youtube.com/watch?v={youtube_id}'
+
+USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36'
+
+NB_AJAX_CONSECUTIVE_MAX_TRIALS = 15
+REQUEST_TIMEOUT = 10
+POST_REQUEST_TIMEOUT = 4
+SORT_BY_POPULAR = 0
+SORT_BY_RECENT = 1
+
+YT_CFG_RE = r'ytcfg\.set\s*\(\s*({.+?})\s*\)\s*;'
+YT_INITIAL_DATA_RE = r'(?:window\s*\[\s*["\']ytInitialData["\']\s*\]|ytInitialData)\s*=\s*({.+?})\s*;\s*(?:var\s+meta|</script|\n)'
+
+class YoutubeCommentDownloader:
+
+    def __init__(self):
+        self.session = requests.Session()
+        self.session.headers['User-Agent'] = USER_AGENT
+        self.session.cookies.set('CONSENT', 'YES+cb', domain='.youtube.com')
+
+    def ajax_request(self, endpoint, ytcfg, retries=2, sleep=3):
+        url = 'https://www.youtube.com' + endpoint['commandMetadata']['webCommandMetadata']['apiUrl']
+
+        data = {'context': ytcfg['INNERTUBE_CONTEXT'],
+                'continuation': endpoint['continuationCommand']['token']}
+
+        for _ in range(retries):
+            response = self.session.post(url, params={'key': ytcfg['INNERTUBE_API_KEY']}, json=data, timeout=POST_REQUEST_TIMEOUT)
+            if response.status_code == 200:
+                return response.json()
+            if response.status_code in [403, 413]:
+                return {}
+            else:
+                time.sleep(sleep)
+
+    def get_comments(self, youtube_id, *args, **kwargs):
+        return self.get_comments_from_url(YOUTUBE_VIDEO_URL.format(youtube_id=youtube_id), *args, **kwargs)
+
+    def get_comments_from_url(self, youtube_url, sort_by=SORT_BY_RECENT, language=None, sleep=.1):
+        comments_list = []
+
+        response = self.session.get(youtube_url, timeout=REQUEST_TIMEOUT)
+
+        html = response.text
+        ytcfg = json.loads(self.regex_search(html, YT_CFG_RE, default=''))
+        if not ytcfg:
+            return []  # Unable to extract configuration
+        if language:
+            ytcfg['INNERTUBE_CONTEXT']['client']['hl'] = language
+
+        data = json.loads(self.regex_search(html, YT_INITIAL_DATA_RE, default=''))
+
+        item_section = next(self.search_dict(data, 'itemSectionRenderer'), None)
+        renderer = next(self.search_dict(item_section, 'continuationItemRenderer'), None) if item_section else None
+        if not renderer:
+            # Comments disabled?
+            return []
+
+        sort_menu = next(self.search_dict(data, 'sortFilterSubMenuRenderer'), {}).get('subMenuItems', [])
+        if not sort_menu:
+            # No sort menu. Maybe this is a request for community posts?
+            section_list = next(self.search_dict(data, 'sectionListRenderer'), {})
+            continuations = list(self.search_dict(section_list, 'continuationEndpoint'))
+            # Retry..
+            data = self.ajax_request(continuations[0], ytcfg) if continuations else {}
+            sort_menu = next(self.search_dict(data, 'sortFilterSubMenuRenderer'), {}).get('subMenuItems', [])
+        if not sort_menu or sort_by >= len(sort_menu):
+            raise RuntimeError('Failed to set sorting')
+        continuations = [sort_menu[sort_by]['serviceEndpoint']]
+
+        nb_remaining_iterations_ajax = NB_AJAX_CONSECUTIVE_MAX_TRIALS
+        while continuations:
+            continuation = continuations.pop()
+            response = self.ajax_request(continuation, ytcfg)
+            nb_remaining_iterations_ajax -= 1
+            if nb_remaining_iterations_ajax <= 0:
+                break
+
+            if not response:
+                break
+
+            error = next(self.search_dict(response, 'externalErrorMessage'), None)
+            if error:
+                raise RuntimeError('Error returned from server: ' + error)
+
+            actions = list(self.search_dict(response, 'reloadContinuationItemsCommand')) + \
+                      list(self.search_dict(response, 'appendContinuationItemsAction'))
+            for action in actions:
+                for item in action.get('continuationItems', []):
+                    if action['targetId'] in ['comments-section', 'engagement-panel-comments-section']:
+                        # Process continuations for comments and replies.
+                        continuations[:0] = [ep for ep in self.search_dict(item, 'continuationEndpoint')]
+                    if action['targetId'].startswith('comment-replies-item') and 'continuationItemRenderer' in item:
+                        # Process the 'Show more replies' button
+                        continuations.append(next(self.search_dict(item, 'buttonRenderer'))['command'])
+
+            for comment in reversed(list(self.search_dict(response, 'commentRenderer'))):
+                result = {'cid': comment['commentId'],
+                          'text': ''.join([c['text'] for c in comment['contentText'].get('runs', [])]),
+                          'time': comment['publishedTimeText']['runs'][0]['text'],
+                          'author': comment.get('authorText', {}).get('simpleText', ''),
+                          'channel': comment['authorEndpoint']['browseEndpoint'].get('browseId', ''),
+                          'votes': comment.get('voteCount', {}).get('simpleText', '0'),
+                          'photo': comment['authorThumbnail']['thumbnails'][-1]['url'],
+                          'heart': next(self.search_dict(comment, 'isHearted'), False),
+                          'reply': '.' in comment['commentId']}
+
+                try:
+                    result['time_parsed'] = dateparser.parse(result['time'].split('(')[0].strip()).timestamp()
+                except AttributeError:
+                    pass
+
+                paid = (
+                    comment.get('paidCommentChipRenderer', {})
+                    .get('pdgCommentChipRenderer', {})
+                    .get('chipText', {})
+                    .get('simpleText')
+                )
+                if paid:
+                    result['paid'] = paid
+
+                comments_list.append(result)
+            time.sleep(sleep)
+
+        return comments_list
+
+    @staticmethod
+    def regex_search(text, pattern, group=1, default=None):
+        match = re.search(pattern, text)
+        return match.group(group) if match else default
+
+    @staticmethod
+    def search_dict(partial, search_key):
+        stack = [partial]
+        nb_recursion_remaining = 100000
+        while stack:
+            current_item = stack.pop()
+            if isinstance(current_item, dict):
+                for key, value in current_item.items():
+                    if key == search_key:
+                        yield value
+                    else:
+                        stack.append(value)
+            elif isinstance(current_item, list):
+                stack.extend(current_item)
+            nb_recursion_remaining -= 1
+            if nb_recursion_remaining <= 0:
+                break
+                
 """
 - Fetch https://www.youtube.com/results?search_query={KEYWORD} example: https://www.youtube.com/results?search_query=bitcoin
 - Get all video URLs + their titles
@@ -67,6 +227,7 @@ USER_AGENT_LIST = [
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Safari/605.1.15'
 ]
 
+
 yt_comment_dl = YoutubeCommentDownloader()
 
 def is_within_timeframe_seconds(input_timestamp, timeframe_sec):
@@ -108,11 +269,19 @@ def randomly_add_search_filter(input_URL, p):
 
 async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_total_comments_to_check):
     URL = "https://www.youtube.com/results?search_query={}".format(keyword)
-    URL = randomly_add_search_filter(URL, p= PROBABILITY_ADDING_SUFFIX )
+    URL = randomly_add_search_filter(URL, p=PROBABILITY_ADDING_SUFFIX)
     logging.info(f"[Youtube] Looking at video URL: {URL}")
-    response = requests.get(URL, headers={'User-Agent': random.choice(USER_AGENT_LIST)}, timeout=8.0)
 
-    soup = BeautifulSoup(response.text, 'html.parser')
+    async with aiohttp.ClientSession(headers={'User-Agent': random.choice(USER_AGENT_LIST)}) as session:
+        try:
+            async with session.get(URL, timeout=REQUEST_TIMEOUT) as response:
+                response.raise_for_status()
+                html = await response.text()
+        except aiohttp.ClientError as e:
+            logging.error(f"An error occurred during the request: {e}")
+            return
+
+    soup = BeautifulSoup(html, 'html.parser')
 
     URLs_remaining_trials = 10
     # Find the script tag containing the JSON data
@@ -121,7 +290,7 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
     urls = []
     titles = []
     if script_tag:
-        await asyncio.sleep(0.2) 
+        await asyncio.sleep(0.1) 
         # Extract the JSON content
         json_str = script_tag.text
         start_index = json_str.find('var ytInitialData = ') + len('var ytInitialData = ')
@@ -152,25 +321,35 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
     nb_comments_checked = 0
     urls = extract_url_parts(urls)
     for url, title in zip(urls, titles):
-        await asyncio.sleep(0.2) 
+        await asyncio.sleep(0.1) 
         # skip URL randomly with 10% chance
         if random.random() < 0.1:
             continue
-        comments = yt_comment_dl.get_comments_from_url(url, sort_by=SORT_BY_RECENT)
         youtube_video_url = url
-        comments_list = list(comments)
+        # Run the generator function and handle the timeout
+        comments_list = []
+        try:
+            comments_list = yt_comment_dl.get_comments_from_url(url, sort_by=SORT_BY_RECENT)
+        except Exception as e:      
+            logging.exception(f"[Youtube] get_comments_from_url - error: {e}")
+
         nb_comments = len(comments_list)
         nb_comments_checked += nb_comments
         logging.info(f"[Youtube] checking the {nb_comments} comments on video: {title}")
         for comment in comments_list:
-            comment_timestamp = int(round(comment['time_parsed'],1))
+            try:
+                comment_timestamp = int(round(comment['time_parsed'],1))
+            except Exception as e:
+                logging.exception(f"[Youtube] parsing comment datetime error: {e}\n \
+                THIS CAN BE DUE TO FOREIGN/SPECIAL DATE FORMAT, not handled at this date.\n Please report this to the Exorde discord, with your region/VPS location.")
+
             comment_url = youtube_video_url + "&lc=" +  comment['cid']
             comment_id = comment['cid']
             comment_content = title + " . " + comment['text']
             comment_datetime = convert_timestamp(comment_timestamp)
             if is_within_timeframe_seconds(comment_timestamp, max_oldness_seconds):
                 comment_obj = {'url':comment_url, 'content':comment_content, 'title':title, 'created_at':comment_datetime, 'external_id':comment_id}
-                logging.info("[Youtube] found new comment: ",comment_obj)
+                logging.info(f"[Youtube] found new comment: {comment_obj}")
                 yield Item(
                     content=Content(str(comment_content)),
                     created_at=CreatedAt(str(comment_obj['created_at'])),
@@ -254,8 +433,11 @@ async def query(parameters: dict) -> AsyncGenerator[Item, None]:
         selected_keyword = randomly_replace_or_choose_keyword("", p=1)
 
     logging.info(f"[Youtube] - Scraping latest comments posted less than {max_oldness_seconds} seconds ago, on youtube videos related to keyword: {selected_keyword}.")
-    async for item in scrape(selected_keyword, max_oldness_seconds, maximum_items_to_collect, max_total_comments_to_check):
-        yielded_items += 1
-        yield item
-        if yielded_items >= maximum_items_to_collect:
-            break
+    try:
+        async for item in scrape(selected_keyword, max_oldness_seconds, maximum_items_to_collect, max_total_comments_to_check):
+            yielded_items += 1
+            yield item
+            if yielded_items >= maximum_items_to_collect:
+                break
+    except asyncio.exceptions.TimeoutError:
+        logging.info(f"[Youtube] Internal requests are taking longer than {REQUEST_TIMEOUT} - we must give up & move on. Check your network.")

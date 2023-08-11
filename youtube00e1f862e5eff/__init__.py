@@ -284,6 +284,7 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
     soup = BeautifulSoup(html, 'html.parser')
 
     URLs_remaining_trials = 10
+    await asyncio.sleep(2)
     # Find the script tag containing the JSON data
     script_tag = soup.find('script', text=lambda text: text and 'var ytInitialData' in text)
 
@@ -321,7 +322,7 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
     nb_comments_checked = 0
     urls = extract_url_parts(urls)
     for url, title in zip(urls, titles):
-        await asyncio.sleep(0.1) 
+        await asyncio.sleep(1) 
         # skip URL randomly with 10% chance
         if random.random() < 0.1:
             continue
@@ -422,6 +423,7 @@ async def query(parameters: dict) -> AsyncGenerator[Item, None]:
     max_oldness_seconds, maximum_items_to_collect, min_post_length, probability_to_select_default_kws, max_total_comments_to_check  = read_parameters(parameters)
     selected_keyword = ""
     
+    await asyncio.sleep(1)
     try:
         if "keyword" in parameters:
             selected_keyword = parameters["keyword"]

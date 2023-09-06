@@ -31,6 +31,7 @@ import logging
 """
 
 YOUTUBE_VIDEO_URL = 'https://www.youtube.com/watch?v={youtube_id}'
+YOUTUBE_CONSENT_URL = 'https://consent.youtube.com/save'
 
 USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36'
 
@@ -40,17 +41,21 @@ POST_REQUEST_TIMEOUT = 4
 SORT_BY_POPULAR = 0
 SORT_BY_RECENT = 1
 
+
 YT_CFG_RE = r'ytcfg\.set\s*\(\s*({.+?})\s*\)\s*;'
 YT_INITIAL_DATA_RE = r'(?:window\s*\[\s*["\']ytInitialData["\']\s*\]|ytInitialData)\s*=\s*({.+?})\s*;\s*(?:var\s+meta|</script|\n)'
+YT_HIDDEN_INPUT_RE = r'<input\s+type="hidden"\s+name="([A-Za-z0-9_]+)"\s+value="([A-Za-z0-9_\-\.]*)"\s*(?:required|)\s*>'
+
 
 class YoutubeCommentDownloader:
 
     def __init__(self):
         self.session = requests.Session()
         self.session.headers['User-Agent'] = USER_AGENT
-        self.session.cookies.set('CONSENT', 'YES+cb', domain='.youtube.com')
+        self.session.cookies.set('CONSENT', 'YES+cb', domain='.youtube.com')                
+        self.MAX_ITERATIONS_CONTINUATIONS_AJAX = 10000
 
-    def ajax_request(self, endpoint, ytcfg, retries=2, sleep=3):
+    def ajax_request(self, endpoint, ytcfg, retries=5, sleep=7):
         url = 'https://www.youtube.com' + endpoint['commandMetadata']['webCommandMetadata']['apiUrl']
 
         data = {'context': ytcfg['INNERTUBE_CONTEXT'],
@@ -63,20 +68,25 @@ class YoutubeCommentDownloader:
             if response.status_code in [403, 413]:
                 return {}
             else:
+                # print("Response status code: %d. Retrying in %d seconds" % (response.status_code, sleep))
                 time.sleep(sleep)
 
     def get_comments(self, youtube_id, *args, **kwargs):
         return self.get_comments_from_url(YOUTUBE_VIDEO_URL.format(youtube_id=youtube_id), *args, **kwargs)
 
-    def get_comments_from_url(self, youtube_url, sort_by=SORT_BY_RECENT, language=None, sleep=.1):
-        comments_list = []
+    def get_comments_from_url(self, youtube_url, sort_by=SORT_BY_RECENT, language=None, sleep=0.25):
+        response = self.session.get(youtube_url)
 
-        response = self.session.get(youtube_url, timeout=REQUEST_TIMEOUT)
+        if 'consent' in str(response.url):
+            # We may get redirected to a separate page for cookie consent. If this happens we agree automatically.
+            params = dict(re.findall(YT_HIDDEN_INPUT_RE, response.text))
+            params.update({'continue': youtube_url, 'set_eom': False, 'set_ytc': True, 'set_apyt': True})
+            response = self.session.post(YOUTUBE_CONSENT_URL, params=params, timeout=POST_REQUEST_TIMEOUT)
 
         html = response.text
         ytcfg = json.loads(self.regex_search(html, YT_CFG_RE, default=''))
         if not ytcfg:
-            return []  # Unable to extract configuration
+            return  # Unable to extract configuration
         if language:
             ytcfg['INNERTUBE_CONTEXT']['client']['hl'] = language
 
@@ -86,7 +96,7 @@ class YoutubeCommentDownloader:
         renderer = next(self.search_dict(item_section, 'continuationItemRenderer'), None) if item_section else None
         if not renderer:
             # Comments disabled?
-            return []
+            return
 
         sort_menu = next(self.search_dict(data, 'sortFilterSubMenuRenderer'), {}).get('subMenuItems', [])
         if not sort_menu:
@@ -100,16 +110,13 @@ class YoutubeCommentDownloader:
             raise RuntimeError('Failed to set sorting')
         continuations = [sort_menu[sort_by]['serviceEndpoint']]
 
-        nb_remaining_iterations_ajax = NB_AJAX_CONSECUTIVE_MAX_TRIALS
         while continuations:
             continuation = continuations.pop()
             response = self.ajax_request(continuation, ytcfg)
-            nb_remaining_iterations_ajax -= 1
-            if nb_remaining_iterations_ajax <= 0:
-                break
 
-            if not response:
+            if not response or self.MAX_ITERATIONS_CONTINUATIONS_AJAX == 0:
                 break
+            self.MAX_ITERATIONS_CONTINUATIONS_AJAX -= 1
 
             error = next(self.search_dict(response, 'externalErrorMessage'), None)
             if error:
@@ -119,7 +126,9 @@ class YoutubeCommentDownloader:
                       list(self.search_dict(response, 'appendContinuationItemsAction'))
             for action in actions:
                 for item in action.get('continuationItems', []):
-                    if action['targetId'] in ['comments-section', 'engagement-panel-comments-section']:
+                    if action['targetId'] in ['comments-section',
+                                              'engagement-panel-comments-section',
+                                              'shorts-engagement-panel-comments-section']:
                         # Process continuations for comments and replies.
                         continuations[:0] = [ep for ep in self.search_dict(item, 'continuationEndpoint')]
                     if action['targetId'].startswith('comment-replies-item') and 'continuationItemRenderer' in item:
@@ -150,11 +159,10 @@ class YoutubeCommentDownloader:
                 )
                 if paid:
                     result['paid'] = paid
-
-                comments_list.append(result)
+                
+                yield result
+            # print("Sleeping for %s seconds" % sleep)
             time.sleep(sleep)
-
-        return comments_list
 
     @staticmethod
     def regex_search(text, pattern, group=1, default=None):
@@ -164,7 +172,6 @@ class YoutubeCommentDownloader:
     @staticmethod
     def search_dict(partial, search_key):
         stack = [partial]
-        nb_recursion_remaining = 100000
         while stack:
             current_item = stack.pop()
             if isinstance(current_item, dict):
@@ -175,9 +182,6 @@ class YoutubeCommentDownloader:
                         stack.append(value)
             elif isinstance(current_item, list):
                 stack.extend(current_item)
-            nb_recursion_remaining -= 1
-            if nb_recursion_remaining <= 0:
-                break
                 
 """
 - Fetch https://www.youtube.com/results?search_query={KEYWORD} example: https://www.youtube.com/results?search_query=bitcoin

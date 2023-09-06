@@ -75,7 +75,7 @@ class YoutubeCommentDownloader:
         return self.get_comments_from_url(YOUTUBE_VIDEO_URL.format(youtube_id=youtube_id), *args, **kwargs)
 
     def get_comments_from_url(self, youtube_url, sort_by=SORT_BY_RECENT, language=None, sleep=0.25):
-        response = self.session.get(youtube_url)
+        response = self.session.get(youtube_url, timeout=REQUEST_TIMEOUT)
 
         if 'consent' in str(response.url):
             # We may get redirected to a separate page for cookie consent. If this happens we agree automatically.
@@ -270,7 +270,7 @@ def randomly_add_search_filter(input_URL, p):
         return input_URL + chosen_suffix
     else:
         return input_URL
-
+    
 async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_total_comments_to_check):
     URL = "https://www.youtube.com/results?search_query={}".format(keyword)
     URL = randomly_add_search_filter(URL, p=PROBABILITY_ADDING_SUFFIX)
@@ -290,7 +290,7 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
     URLs_remaining_trials = 10
     await asyncio.sleep(2)
     # Find the script tag containing the JSON data
-    script_tag = soup.find('script', text=lambda text: text and 'var ytInitialData' in text)
+    script_tag = soup.find('script', string=lambda text: text and 'var ytInitialData' in text)
 
     urls = []
     titles = []
@@ -338,6 +338,8 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
         except Exception as e:      
             logging.exception(f"[Youtube] get_comments_from_url - error: {e}")
 
+        # turn generator into list
+        comments_list = list(comments_list)
         nb_comments = len(comments_list)
         nb_comments_checked += nb_comments
         logging.info(f"[Youtube] checking the {nb_comments} comments on video: {title}")

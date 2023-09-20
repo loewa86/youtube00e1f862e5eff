@@ -8,6 +8,9 @@ setup(
         "lxml",
         "exorde_data",
         "aiohttp",
+        "yake==0.4.8",
+        "keybert==0.7.0",
+        "nltk==3.8.1",
         "dateparser>=1.1.3",
         "requests>=2.27.1",
         "HTMLParser"

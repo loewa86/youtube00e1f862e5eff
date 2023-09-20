@@ -20,6 +20,39 @@ from exorde_data import (
     ExternalId
 )
 import logging
+try:
+    import extract_keywords_on_demand as ekod
+except Exception as e:
+    print("[Youtube] FAILED import extract_keywords_on_demand: ",e)
+
+
+def clean_strings(input_list):
+    # Convert all strings to lowercase for case insensitivity
+    input_list = [s.lower() for s in input_list]
+
+    # Remove duplicates while preserving order
+    unique_strings = list(dict.fromkeys(input_list))
+
+    # Filter out 1-word strings that are substrings of 2-grams
+    cleaned_strings = []
+    for s1 in unique_strings:
+        is_substring = False
+        for s2 in unique_strings:
+            if s1 != s2 and s1 in s2:
+                is_substring = True
+                break
+        if not is_substring:
+            cleaned_strings.append(s1)
+
+    # Convert the cleaned strings back to their original case
+    cleaned_strings = [s.title() for s in cleaned_strings]
+
+    return cleaned_strings
+
+try:
+    extract_keywords_title = lambda text: clean_strings(ekod.extract_keywords(text))
+except Exception as e:
+    print("[Youtube] FAILED extract_keywords_title: ",e)
 
 """
 - Fetch https://www.youtube.com/results?search_query={KEYWORD} example: https://www.youtube.com/results?search_query=bitcoin
@@ -203,7 +236,7 @@ DEFAULT_MAXIMUM_ITEMS = 25
 DEFAULT_MIN_POST_LENGTH = 10
 
 DEFAULT_KEYWORDS = \
-["news", "news", "press", "silentsunday", "saturday", "monday", "tuesday" "bitcoin", "ethereum", "eth", "btc", "usdt", "cryptocurrency", "solana",
+["news", "news", "press", "silentsunday", "saturday", "monday", "tuesday" "bitcoin", "ethereum", "eth", "btc", "usdt", "cryptocurrency", "solana", "crypto", "spy", "s&p", "protor gamble",
 "doge", "cardano", "monero", "dogecoin", "polkadot", "ripple", "xrp", "stablecoin", "defi", "cbdc", "nasdaq", "sp500",  "BNB", "ETF", "SpotETF", "iphone", "it",
 "usbc", "eu", "hack", "staking", "proof of work", "hacker", "hackers", "virtualreality", "metaverse", "tech", "technology", "art", "game", "trading", "groundnews", "breakingnews",
 "Gensler", "FED", "SEC", "IMF", "Macron", "Biden", "Putin", "Zelensky", "Trump", "legal", "bitcoiners", "bitcoincash", "ethtrading", "cryptonews",
@@ -352,7 +385,23 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
 
             comment_url = youtube_video_url + "&lc=" +  comment['cid']
             comment_id = comment['cid']
-            comment_content = title + " . " + comment['text']
+            try:
+                title_kws = extract_keywords_title(title)
+            except Exception as e:
+                logging.exception(f"[Youtube] extract_keywords_title - error: {e}")
+                title_kws = []
+            # shuffle the list
+            random.shuffle(title_kws)
+            # select 70% strings from title_kws and order them randomly in a title_str
+            title_string = ""   
+            for kw in title_kws:
+                if random.random() <= 0.63:
+                    title_string += kw + " "
+                    # remove all non alphanumeric characters
+                    title_string = re.sub(r'\W+', ' ', title_string)
+            title_kws = title_string
+
+            comment_content = title_string + " . " + comment['text']
             comment_datetime = convert_timestamp(comment_timestamp)
             if is_within_timeframe_seconds(comment_timestamp, max_oldness_seconds):
                 comment_obj = {'url':comment_url, 'content':comment_content, 'title':title, 'created_at':comment_datetime, 'external_id':comment_id}
@@ -449,3 +498,4 @@ async def query(parameters: dict) -> AsyncGenerator[Item, None]:
                 break
     except asyncio.exceptions.TimeoutError:
         logging.info(f"[Youtube] Internal requests are taking longer than {REQUEST_TIMEOUT} - we must give up & move on. Check your network.")
+            

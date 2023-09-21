@@ -22,6 +22,7 @@ from exorde_data import (
 import logging
 try:
     import nltk
+    nltk.download('stopwords')
     stopwords = nltk.corpus.stopwords.words('english')
 except Exception as e:
     logging.exception(f"[Youtube] nltk.corpus.stopwords.words('english') error: {e}")

@@ -19,6 +19,15 @@ from exorde_data import (
     Domain,
     ExternalId
 )
+import nltk
+try:
+    nltk.download()
+except Exception as e:
+    logging.exception(f"[Youtube] nltk.download() error: {e}")
+    pass
+
+stopwords = nltk.corpus.stopwords.words('english')
+
 import logging
 
 """
@@ -352,7 +361,24 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
 
             comment_url = youtube_video_url + "&lc=" +  comment['cid']
             comment_id = comment['cid']
-            comment_content = title + " . " + comment['text']
+            # make a titled_context from the title of the video, without special characters and punctuation
+            # randomly remove some words from the title & stop words        
+            try:
+                title_base = " ".join([word for word in title.split(" ") if word not in stopwords])
+                titled_context = title_base
+            except Exception as e:
+                logging.exception(f"[Youtube] stopwords error: {e}")
+                titled_context = title
+            if random.random() < 0.15:
+                # remove up to 40% of the title
+                titled_context = " ".join([word for word in title.split(" ") if random.random() > 0.4])
+            elif random.random() < 0.30:
+                # remove up to 20% of the title
+                titled_context = " ".join([word for word in title.split(" ") if random.random() > 0.3])
+            # remove non alpha-numeric characters that are single words
+            titled_context = " ".join([word for word in titled_context.split(" ") if word.isalnum() and len(word) > 1])
+            # add a dot at the end
+            comment_content = titled_context + ". " + comment['text']
             comment_datetime = convert_timestamp(comment_timestamp)
             if is_within_timeframe_seconds(comment_timestamp, max_oldness_seconds):
                 comment_obj = {'url':comment_url, 'content':comment_content, 'title':title, 'created_at':comment_datetime, 'external_id':comment_id}

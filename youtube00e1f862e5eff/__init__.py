@@ -19,16 +19,13 @@ from exorde_data import (
     Domain,
     ExternalId
 )
-import nltk
-try:
-    nltk.download()
-except Exception as e:
-    logging.exception(f"[Youtube] nltk.download() error: {e}")
-    pass
-
-stopwords = nltk.corpus.stopwords.words('english')
-
 import logging
+try:
+    import nltk
+    stopwords = nltk.corpus.stopwords.words('english')
+except Exception as e:
+    logging.exception(f"[Youtube] nltk.corpus.stopwords.words('english') error: {e}")
+    stopwords = []
 
 """
 - Fetch https://www.youtube.com/results?search_query={KEYWORD} example: https://www.youtube.com/results?search_query=bitcoin

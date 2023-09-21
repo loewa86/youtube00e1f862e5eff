@@ -455,6 +455,7 @@ async def query(parameters: dict) -> AsyncGenerator[Item, None]:
     max_oldness_seconds, maximum_items_to_collect, min_post_length, probability_to_select_default_kws, max_total_comments_to_check  = read_parameters(parameters)
     selected_keyword = ""
     
+    content_map = {}
     await asyncio.sleep(1)
     try:
         if "keyword" in parameters:
@@ -469,6 +470,14 @@ async def query(parameters: dict) -> AsyncGenerator[Item, None]:
     logging.info(f"[Youtube] - Scraping latest comments posted less than {max_oldness_seconds} seconds ago, on youtube videos related to keyword: {selected_keyword}.")
     try:
         async for item in scrape(selected_keyword, max_oldness_seconds, maximum_items_to_collect, max_total_comments_to_check):
+            # check if the content is not already in the map
+            if item['content'] in content_map:
+                continue
+            else:
+                content_map[item['content']] = True
+            # check if the content is not too short
+            if len(item.content) < min_post_length:
+                continue
             yielded_items += 1
             yield item
             if yielded_items >= maximum_items_to_collect:

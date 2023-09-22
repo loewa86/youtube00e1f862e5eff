@@ -273,7 +273,7 @@ def randomly_add_search_filter(input_URL, p):
     ]
     if random.random() < p:
         # Choose one of the suffixes based on probability distribution
-        chosen_suffix = random.choices(suffixes, weights=[0.40, 0.10, 0.30, 0.20])[0]
+        chosen_suffix = random.choices(suffixes, weights=[0.20, 0.10, 0.35, 0.35])[0]
         return input_URL + chosen_suffix
     else:
         return input_URL
@@ -329,6 +329,11 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
     else:
         logging.info("[Youtube] No ytInitialData found.")
 
+
+    last_n_video_comment_count = []
+    n_rolling_size = 10
+    n_rolling_size_min = 3
+
     yielded_items = 0
     nb_comments_checked = 0
     urls = extract_url_parts(urls)
@@ -336,17 +341,49 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
         await asyncio.sleep(1) 
         # skip URL randomly with 10% chance
         if random.random() < 0.1:
+            print("[Youtube] Skipping URL with 10% chance : ", url)
             continue
         youtube_video_url = url
         # Run the generator function and handle the timeout
-        comments_list = []
+        comments_list = []       
+        ###################################################################
+        # Exponential backoff to prevent rate limiting
+        # use a polynomial formula based on the number of 0 in last_n_video_comment_count
+        # f(nb_zeros) = 3 + nb_zeros^2
+        nb_zeros = 0
+        # iterate from the end of the array, count consecutive 0 and break when we find a non 0
+        if len(last_n_video_comment_count) >= n_rolling_size_min:
+            for i in range(len(last_n_video_comment_count)-1, -1, -1):
+                if last_n_video_comment_count[i] == 0:
+                    nb_zeros += 1
+                else:
+                    break
+                # compute the sleep time
+            random_inter_sleep = 2 + nb_zeros**2
+            print("[Youtube] [RATE LIMITE PREVENTION] Waiting  ", random_inter_sleep, " seconds...")
+            await asyncio.sleep(random_inter_sleep)
+        ###################################################################
+
         try:
             comments_list = yt_comment_dl.get_comments_from_url(url, sort_by=SORT_BY_RECENT)
+            # turn generator into list
+            comments_list = list(comments_list)
+            ###### ROLLING WINDOWS OF COMMENTS COUNT ######
+            ### ADD LATEST COMMENTS COUNT TO THE ROLLING WINDOW
+            last_n_video_comment_count.append(len(comments_list))
+            ### REMOVE THE OLDEST COMMENTS COUNT FROM THE ROLLING WINDOW
+            if len(last_n_video_comment_count) > n_rolling_size:
+                last_n_video_comment_count.pop(0)
+            ### CHECK IF THE ROLLING WINDOW IS FULL
+            if len(last_n_video_comment_count) == n_rolling_size:
+                ### CHECK IF THE ROLLING WINDOW IS FULL OF 0
+                if sum(last_n_video_comment_count) == 0:
+                    ### IF YES, STOP THE PROCESS
+                    print("[Youtube] [RATE LIMITE PROTECTION] The rolling window of comments count is full of 0. Stopping the process...")
+                    break
         except Exception as e:      
             logging.exception(f"[Youtube] get_comments_from_url - error: {e}")
 
-        # turn generator into list
-        comments_list = list(comments_list)
         nb_comments = len(comments_list)
         nb_comments_checked += nb_comments
         logging.info(f"[Youtube] checking the {nb_comments} comments on video: {title}")

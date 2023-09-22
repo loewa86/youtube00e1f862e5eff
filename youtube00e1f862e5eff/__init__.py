@@ -366,10 +366,10 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
 
         try:
             comments_list = yt_comment_dl.get_comments_from_url(url, sort_by=SORT_BY_RECENT)
-            # turn generator into list
-            comments_list = list(comments_list)
             ###### ROLLING WINDOWS OF COMMENTS COUNT ######
             ### ADD LATEST COMMENTS COUNT TO THE ROLLING WINDOW
+            # turn generator into list
+            comments_list = list(comments_list)
             last_n_video_comment_count.append(len(comments_list))
             ### REMOVE THE OLDEST COMMENTS COUNT FROM THE ROLLING WINDOW
             if len(last_n_video_comment_count) > n_rolling_size:

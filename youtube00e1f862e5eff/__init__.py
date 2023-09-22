@@ -332,7 +332,7 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
 
     last_n_video_comment_count = []
     n_rolling_size = 10
-    n_rolling_size_min = 3
+    n_rolling_size_min = 4
 
     yielded_items = 0
     nb_comments_checked = 0
@@ -341,7 +341,7 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
         await asyncio.sleep(1) 
         # skip URL randomly with 10% chance
         if random.random() < 0.1:
-            print("[Youtube] Skipping URL with 10% chance : ", url)
+            logging.info(f"[Youtube] Randomly skipping URL: {url}")
             continue
         youtube_video_url = url
         # Run the generator function and handle the timeout
@@ -359,13 +359,14 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
                 else:
                     break
                 # compute the sleep time
-            random_inter_sleep = 2 + nb_zeros**2
-            print("[Youtube] [RATE LIMITE PREVENTION] Waiting  ", random_inter_sleep, " seconds...")
+            random_inter_sleep = round(1 + nb_zeros**1.5,0) ## 1.5 is the exponent
+            logging.info(f"[Youtube] [RATE LIMITE PREVENTION] Waiting  {random_inter_sleep} seconds...")
             await asyncio.sleep(random_inter_sleep)
         ###################################################################
 
         try:
             comments_list = yt_comment_dl.get_comments_from_url(url, sort_by=SORT_BY_RECENT)
+
             ###### ROLLING WINDOWS OF COMMENTS COUNT ######
             ### ADD LATEST COMMENTS COUNT TO THE ROLLING WINDOW
             # turn generator into list
@@ -379,7 +380,7 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
                 ### CHECK IF THE ROLLING WINDOW IS FULL OF 0
                 if sum(last_n_video_comment_count) == 0:
                     ### IF YES, STOP THE PROCESS
-                    print("[Youtube] [RATE LIMITE PROTECTION] The rolling window of comments count is full of 0. Stopping the process...")
+                    logging.info("[Youtube] [RATE LIMITE PROTECTION] The rolling window of comments count is full of 0s. Stopping the scraping iteration...")
                     break
         except Exception as e:      
             logging.exception(f"[Youtube] get_comments_from_url - error: {e}")

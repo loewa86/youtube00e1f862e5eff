@@ -331,8 +331,8 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
 
 
     last_n_video_comment_count = []
-    n_rolling_size = 10
-    n_rolling_size_min = 4
+    n_rolling_size = 15
+    n_rolling_size_min = 3
 
     yielded_items = 0
     nb_comments_checked = 0
@@ -359,7 +359,7 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
                 else:
                     break
                 # compute the sleep time
-            random_inter_sleep = round(1 + nb_zeros**1.5,0) ## 1.5 is the exponent
+            random_inter_sleep = round(3 + nb_zeros**1.7,0) ## 1.5 is the exponent
             logging.info(f"[Youtube] [RATE LIMITE PREVENTION] Waiting  {random_inter_sleep} seconds...")
             await asyncio.sleep(random_inter_sleep)
         ###################################################################

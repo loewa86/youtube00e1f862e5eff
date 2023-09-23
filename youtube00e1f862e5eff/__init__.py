@@ -273,7 +273,7 @@ def randomly_add_search_filter(input_URL, p):
     ]
     if random.random() < p:
         # Choose one of the suffixes based on probability distribution
-        chosen_suffix = random.choices(suffixes, weights=[0.20, 0.10, 0.35, 0.35])[0]
+        chosen_suffix = random.choices(suffixes, weights=[0.10, 0.10, 0.20, 0.60])[0]
         return input_URL + chosen_suffix
     else:
         return input_URL

@@ -84,8 +84,8 @@ YT_COMMENT_DLOADER_ = None
 
 ###### --- YOUTUBE COMMENT DOWNLOADER --- ########
 NB_AJAX_CONSECUTIVE_MAX_TRIALS = 15
-REQUEST_TIMEOUT = 10
-POST_REQUEST_TIMEOUT = 5
+REQUEST_TIMEOUT = 8
+POST_REQUEST_TIMEOUT = 4
 SORT_BY_POPULAR = 0
 SORT_BY_RECENT = 1
 
@@ -134,7 +134,7 @@ class YoutubeCommentDownloader:
             # We may get redirected to a separate page for cookie consent. If this happens we agree automatically.
             params = dict(re.findall(YT_HIDDEN_INPUT_RE, response.text))
             params.update({'continue': youtube_url, 'set_eom': False, 'set_ytc': True, 'set_apyt': True})
-            response = self.session.post(YOUTUBE_CONSENT_URL, params=params)
+            response = self.session.post(YOUTUBE_CONSENT_URL, params=params, timeout=REQUEST_TIMEOUT)
 
         html = response.text
         ytcfg = json.loads(self.regex_search(html, YT_CFG_RE, default=''))
@@ -333,9 +333,13 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
 
     yielded_items = 0
     nb_comments_checked = 0
+
     urls = extract_url_parts(urls)
-    # shuffle the urls
-    random.shuffle(urls)
+    # shuffle the urls and titles together mapped 
+    urlstitles = list(zip(urls, titles))
+    random.shuffle(urlstitles)
+    urls, titles = zip(*urlstitles)
+    
     for url, title in zip(urls, titles):
         await asyncio.sleep(1) 
         # skip URL randomly with 10% chance
@@ -358,12 +362,13 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
                 else:
                     break
                 # compute the sleep time
-            random_inter_sleep = round(0.1 + nb_zeros*0.5,0) ## 1.5 is the exponent
+            random_inter_sleep = round(0.1 + nb_zeros*0.2,1) ## 1.5 is the exponent
             logging.info(f"[Youtube] [soft rate limit] Waiting  {random_inter_sleep} seconds...")
             await asyncio.sleep(random_inter_sleep)
         ###################################################################
 
         try:
+            logging.info(f"[Youtube] Getting ...{url}")
             comments_list = YT_COMMENT_DLOADER_.get_comments_from_url(url, sort_by=SORT_BY_RECENT)
 
             ###### ROLLING WINDOWS OF COMMENTS COUNT ######

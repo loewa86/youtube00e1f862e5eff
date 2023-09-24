@@ -370,6 +370,9 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
             ### ADD LATEST COMMENTS COUNT TO THE ROLLING WINDOW
             # turn generator into list
             comments_list = list(comments_list)
+            nb_comments = len(comments_list)
+            nb_comments_checked += nb_comments
+            logging.info(f"[Youtube] checking the {nb_comments} comments on video: {title}")
             last_n_video_comment_count.append(len(comments_list))
             ### REMOVE THE OLDEST COMMENTS COUNT FROM THE ROLLING WINDOW
             if len(last_n_video_comment_count) > n_rolling_size:
@@ -384,9 +387,6 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
         except Exception as e:      
             logging.exception(f"[Youtube] YT_COMMENT_DLOADER_ - ERROR: {e}")
 
-        nb_comments = len(comments_list)
-        nb_comments_checked += nb_comments
-        logging.info(f"[Youtube] checking the {nb_comments} comments on video: {title}")
         for comment in comments_list:
             try:
                 comment_timestamp = int(round(comment['time_parsed'],1))

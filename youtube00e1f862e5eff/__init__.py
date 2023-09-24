@@ -45,7 +45,8 @@ DEFAULT_MAXIMUM_ITEMS = 25
 DEFAULT_MIN_POST_LENGTH = 10
 
 DEFAULT_KEYWORDS = \
-    ["news", "news", "press", "silentsunday", "saturday", "monday", "tuesday" "bitcoin", "ethereum", "eth", "btc", "usdt", "cryptocurrency", "solana",
+    ["news", "news", "news stock crypto", "stock market news",  "stock market news", "stock market news","politic news", "breaking news", "press", "silentsunday", "breaking change",
+     "tuesday" "bitcoin", "ethereum", "eth", "btc", "usdt", "cryptocurrency", "solana", "theft hack", "conspiracy", "new product", "new startup", "new startup", "emerging project",
     "doge", "cardano", "monero", "dogecoin", "polkadot", "ripple", "xrp", "stablecoin", "defi", "cbdc", "nasdaq", "sp500",  "BNB", "ETF", "SpotETF", "iphone", "it",
     "usbc", "eu", "hack", "staking", "proof of work", "hacker", "hackers", "virtualreality", "metaverse", "tech", "technology", "art", "game", "trading", "groundnews", "breakingnews",
     "Gensler", "FED", "SEC", "IMF", "Macron", "Biden", "Putin", "Zelensky", "Trump", "legal", "bitcoiners", "bitcoincash", "ethtrading", "cryptonews",
@@ -327,8 +328,8 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
 
 
     last_n_video_comment_count = []
-    n_rolling_size = 10
-    n_rolling_size_min = 5
+    n_rolling_size = 8
+    n_rolling_size_min = 3
 
     yielded_items = 0
     nb_comments_checked = 0
@@ -357,7 +358,7 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
                 else:
                     break
                 # compute the sleep time
-            random_inter_sleep = round(0.5 + nb_zeros**1.25,0) ## 1.5 is the exponent
+            random_inter_sleep = round(0.1 + nb_zeros*0.5,0) ## 1.5 is the exponent
             logging.info(f"[Youtube] [soft rate limit] Waiting  {random_inter_sleep} seconds...")
             await asyncio.sleep(random_inter_sleep)
         ###################################################################

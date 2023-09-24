@@ -328,7 +328,7 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
 
     last_n_video_comment_count = []
     n_rolling_size = 10
-    n_rolling_size_min = 3
+    n_rolling_size_min = 5
 
     yielded_items = 0
     nb_comments_checked = 0

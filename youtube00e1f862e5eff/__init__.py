@@ -36,8 +36,52 @@ except Exception as e:
 - add title to comment text (as first sentence).
 - that's all folks
 """
+MAX_TOTAL_COMMENTS_TO_CHECK = 500
+PROBABILITY_ADDING_SUFFIX = 0.50
+PROBABILITY_DEFAULT_KEYWORD = 0.33
 
+DEFAULT_OLDNESS_SECONDS = 360
+DEFAULT_MAXIMUM_ITEMS = 25
+DEFAULT_MIN_POST_LENGTH = 10
 
+DEFAULT_KEYWORDS = \
+    ["news", "news", "press", "silentsunday", "saturday", "monday", "tuesday" "bitcoin", "ethereum", "eth", "btc", "usdt", "cryptocurrency", "solana",
+    "doge", "cardano", "monero", "dogecoin", "polkadot", "ripple", "xrp", "stablecoin", "defi", "cbdc", "nasdaq", "sp500",  "BNB", "ETF", "SpotETF", "iphone", "it",
+    "usbc", "eu", "hack", "staking", "proof of work", "hacker", "hackers", "virtualreality", "metaverse", "tech", "technology", "art", "game", "trading", "groundnews", "breakingnews",
+    "Gensler", "FED", "SEC", "IMF", "Macron", "Biden", "Putin", "Zelensky", "Trump", "legal", "bitcoiners", "bitcoincash", "ethtrading", "cryptonews",
+    "cryptomarket", "cryptoart", "CPTPP", "brexit", "trade", "economy", "USpolitics", "UKpolitics", "NHL", "computer", "computerscience", "stem", "gpt4",
+    "billgates", "ai", "chatgpt", "openai", "wissen", "french", "meat", "support", "aid", "mutualaid", "mastodon", "bluesky", "animal", "animalrights",
+    "BitcoinETF", "Crypto", "altcoin", "DeFi", "GameFi", "web3", "web3", "trade",  "NFT", "NFTs", "cryptocurrencies", "Cryptos", "reddit", "elon musk",
+    "politics", "business", "twitter", "digital", "airdrop", "gamestop", "finance", "liquidity","token", "economy", "markets", "stocks", "crisis", "gpt", "gpt3",
+    "russia", "war", "ukraine", "luxury", "LVMH", "Elon musk", "conflict", "bank", "Gensler", "emeutes", "FaceID", "Riot", "riots", "riot", "France",
+    "UnitedStates", "USA", "China", "Germany", "Europe", "Canada", "Mexico", "Brazil", "price", "market", "NYSE","NASDAQ", "CAC", "CAC40", "G20", "OilPrice", 
+    "FTSE", "NYSE", "WallStreet", "money", "forex", "trading", "currency", "USD", "WarrenBuffett", "BlackRock", "Berkshire", "IPO", "Apple", "Tesla","Alphabet",
+    "FBstock","debt", "bonds", "XAUUSD", "SP500", "DowJones", "satoshi", "shorts", "live", "algotrading", "tradingalgoritmico", "prorealtime", "ig", "igmarkets", 
+    "win", "trading", "trader", "algorithm", "cfdauto", "algos", "bottrading", "tradingrobot", "robottrading", "prorealtimetrading", "algorithmictrading",
+    "usa ", "canada ", "denmark", "russia", "japan", "italy", "spain", "uk", "eu", "social", "iran", "war","socialism", "Biden", "democracy", "justice", "canada", "leftist",
+    "SpaceX", "GreenEnergy", "CarbonCredits", "DeFiTokens", "LiquidityMining", "NFTMarketplaces",
+    "Web3Platforms", "DecentralizedIdentity", "CyberThreats", "AIResearch", "DeepLearning",
+    "RoboticAutomation", "IoTDevices", "SpaceXLaunches", "CRISPRTechnology", "PrecisionMedicine",
+    "ElectricCars", "QuantumComputers", "AstronomyDiscoveries", "BiotechInnovations", "TelehealthServices",
+    "RemoteCollaboration", "OTTStreaming", "GamingIndustry", "E-sportsTournaments", "EcoTourism",
+    "AgriTech", "PlantBasedDiet", "MentalWellnessApps", "EdTech", "DigitalArtMarket", "CryptoPunks",
+    "BlockchainScaling", "DeFiLending", "Tokenomics", "CryptoRegulation", "StablecoinTrends",
+    "Cross-borderPayments", "ESGInvesting", "SustainableFinance", "SocialJusticeReforms", "DiversityInTech",
+    "InclusiveWorkplace", "RemoteLearning", "VirtualConcerts", "CulinaryExploration", "MindfulnessPractice",
+    "SpaceTourism", "Zero-EmissionVehicles", "SolarPowerInnovation", "BiofuelDevelopment", "AIEthics",
+    "election", "vote", "protocol", "network", "org", "organization", "charity", "money", "scam", "token", "tokens", "ecosystem",
+    "Bitcoin", "Ethereum", "Ripple", "Cardano", "Polkadot", "Solana", "Dogecoin", "Monero", "Chainlink", "Litecoin",
+    "Stellar", "VeChain", "EOS", "Tron", "Tezos", "Cosmos", "Avalanche", "Neo", "Filecoin", "IOTA",
+    "Uniswap", "Aave", "Compound", "Yearn Finance", "Synthetix", "Maker", "SushiSwap", "Curve Finance", "Balancer", "Alpha Finance",
+    "Polygon", "Harmony", "Zilliqa", "Hedera Hashgraph", "Chia", "Theta", "Helium", "Internet Computer", "Algorand", "Celo",
+    "Flow", "Decentraland", "Enjin Coin", "The Graph", "Basic Attention Token", "0x", "Ren", "SwissBorg", "Fetch.ai", "NKN", "Gold", "Silver", "Oil", "BrentCrude", "NaturalGas", "Copper", "Platinum", "Palladium", "Corn",
+    "commodities market", "commodities prediction", "precious metals prediction", "fiat collapse", "digital asset reserve", "BRICS", "BRICS+", "BRICS currency", "darknet markets", "darknet currency",
+    "rightwing",  "DAX", "NASDAQ", "RUSSELL", "RUSSELL2000", "GOLD", "XAUUSD", "DAX40", "IBEX", "IBEX35", "oil", "crude", "crudeoil", "us500", "russell", "russell2000", "worldcoin", "sam atlman", "elon musk"]
+
+global YT_COMMENT_DLOADER_
+YT_COMMENT_DLOADER_ = None
+
+###### --- YOUTUBE COMMENT DOWNLOADER --- ########
 NB_AJAX_CONSECUTIVE_MAX_TRIALS = 15
 REQUEST_TIMEOUT = 10
 POST_REQUEST_TIMEOUT = 5
@@ -63,8 +107,8 @@ class YoutubeCommentDownloader:
         self.session = requests.Session()
         self.session.headers['User-Agent'] = USER_AGENT
         self.session.cookies.set('CONSENT', 'YES+cb', domain='.youtube.com')
-
-    def ajax_request(self, endpoint, ytcfg, retries=5, sleep=20):
+            
+    def ajax_request(self, endpoint, ytcfg, retries=5, sleep=15 ):
         url = 'https://www.youtube.com' + endpoint['commandMetadata']['webCommandMetadata']['apiUrl']
 
         data = {'context': ytcfg['INNERTUBE_CONTEXT'],
@@ -188,56 +232,7 @@ class YoutubeCommentDownloader:
                         stack.append(value)
             elif isinstance(current_item, list):
                 stack.extend(current_item)
-"""
-- Fetch https://www.youtube.com/results?search_query={KEYWORD} example: https://www.youtube.com/results?search_query=bitcoin
-- Get all video URLs + their titles
-- use youtube-comment library to extract all comments (with id, timestamp, and text)
-- rebuild comment URLs from id, select those with recent timestamp
-- add title to comment text (as first sentence).
-- that's all folks
-"""
 
-global MAX_EXPIRATION_SECONDS
-MAX_EXPIRATION_SECONDS = 360
-MAX_TOTAL_COMMENTS_TO_CHECK = 500
-PROBABILITY_ADDING_SUFFIX = 0.75
-PROBABILITY_DEFAULT_KEYWORD = 0.3
-
-DEFAULT_OLDNESS_SECONDS = 360
-DEFAULT_MAXIMUM_ITEMS = 25
-DEFAULT_MIN_POST_LENGTH = 10
-
-DEFAULT_KEYWORDS = \
-["news", "news", "press", "silentsunday", "saturday", "monday", "tuesday" "bitcoin", "ethereum", "eth", "btc", "usdt", "cryptocurrency", "solana",
-"doge", "cardano", "monero", "dogecoin", "polkadot", "ripple", "xrp", "stablecoin", "defi", "cbdc", "nasdaq", "sp500",  "BNB", "ETF", "SpotETF", "iphone", "it",
-"usbc", "eu", "hack", "staking", "proof of work", "hacker", "hackers", "virtualreality", "metaverse", "tech", "technology", "art", "game", "trading", "groundnews", "breakingnews",
-"Gensler", "FED", "SEC", "IMF", "Macron", "Biden", "Putin", "Zelensky", "Trump", "legal", "bitcoiners", "bitcoincash", "ethtrading", "cryptonews",
-"cryptomarket", "cryptoart", "CPTPP", "brexit", "trade", "economy", "USpolitics", "UKpolitics", "NHL", "computer", "computerscience", "stem", "gpt4",
-"billgates", "ai", "chatgpt", "openai", "wissen", "french", "meat", "support", "aid", "mutualaid", "mastodon", "bluesky", "animal", "animalrights",
-"BitcoinETF", "Crypto", "altcoin", "DeFi", "GameFi", "web3", "web3", "trade",  "NFT", "NFTs", "cryptocurrencies", "Cryptos", "reddit", "elon musk",
-"politics", "business", "twitter", "digital", "airdrop", "gamestop", "finance", "liquidity","token", "economy", "markets", "stocks", "crisis", "gpt", "gpt3",
-"russia", "war", "ukraine", "luxury", "LVMH", "Elon musk", "conflict", "bank", "Gensler", "emeutes", "FaceID", "Riot", "riots", "riot", "France",
-"UnitedStates", "USA", "China", "Germany", "Europe", "Canada", "Mexico", "Brazil", "price", "market", "NYSE","NASDAQ", "CAC", "CAC40", "G20", "OilPrice", 
-"FTSE", "NYSE", "WallStreet", "money", "forex", "trading", "currency", "USD", "WarrenBuffett", "BlackRock", "Berkshire", "IPO", "Apple", "Tesla","Alphabet",
- "FBstock","debt", "bonds", "XAUUSD", "SP500", "DowJones", "satoshi", "shorts", "live", "algotrading", "tradingalgoritmico", "prorealtime", "ig", "igmarkets", 
- "win", "trading", "trader", "algorithm", "cfdauto", "algos", "bottrading", "tradingrobot", "robottrading", "prorealtimetrading", "algorithmictrading",
-"usa ", "canada ", "denmark", "russia", "japan", "italy", "spain", "uk", "eu", "social", "iran", "war","socialism", "Biden", "democracy", "justice", "canada", "leftist",
-"election", "vote", "protocol", "network", "org", "organization", "charity", "money", "scam", "token", "tokens", "ecosystem",
-"rightwing",  "DAX", "NASDAQ", "RUSSELL", "RUSSELL2000", "GOLD", "XAUUSD", "DAX40", "IBEX", "IBEX35", "oil", "crude", "crudeoil", "us500", "russell", "russell2000", "worldcoin", "sam atlman", "elon musk"]
-
-USER_AGENT_LIST = [
-    'Mozilla/5.0 (iPad; CPU OS 12_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Safari/605.1.15',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Safari/605.1.15'
-]
-
-
-yt_comment_dl = YoutubeCommentDownloader()
 
 def is_within_timeframe_seconds(input_timestamp, timeframe_sec):
     input_timestamp = int(input_timestamp)
@@ -277,11 +272,12 @@ def randomly_add_search_filter(input_URL, p):
         return input_URL
     
 async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_total_comments_to_check):
+    global YT_COMMENT_DLOADER_
     URL = "https://www.youtube.com/results?search_query={}".format(keyword)
     URL = randomly_add_search_filter(URL, p=PROBABILITY_ADDING_SUFFIX)
     logging.info(f"[Youtube] Looking at video URL: {URL}")
 
-    async with aiohttp.ClientSession(headers={'User-Agent': random.choice(USER_AGENT_LIST)}) as session:
+    async with aiohttp.ClientSession(headers={'User-Agent': USER_AGENT}) as session:
         try:
             async with session.get(URL, timeout=REQUEST_TIMEOUT) as response:
                 response.raise_for_status()
@@ -324,14 +320,14 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
                         titles.append(title)
                         logging.info(f"[Youtube] Video URL found = {full_url} and title: {title}")
 
-        except json.JSONDecodeError:
-            logging.exception("[Youtube] Invalid JSON data in var ytInitialData.")
+        except json.JSONDecodeError as e:
+            logging.info(f"[Youtube] Invalid JSON data in var ytInitialData: {e}")
     else:
         logging.info("[Youtube] No ytInitialData found.")
 
 
     last_n_video_comment_count = []
-    n_rolling_size = 15
+    n_rolling_size = 10
     n_rolling_size_min = 3
 
     yielded_items = 0
@@ -361,13 +357,13 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
                 else:
                     break
                 # compute the sleep time
-            random_inter_sleep = round(1 + nb_zeros**1.3,0) ## 1.5 is the exponent
+            random_inter_sleep = round(0.5 + nb_zeros**1.25,0) ## 1.5 is the exponent
             logging.info(f"[Youtube] [soft rate limit] Waiting  {random_inter_sleep} seconds...")
             await asyncio.sleep(random_inter_sleep)
         ###################################################################
 
         try:
-            comments_list = yt_comment_dl.get_comments_from_url(url, sort_by=SORT_BY_RECENT)
+            comments_list = YT_COMMENT_DLOADER_.get_comments_from_url(url, sort_by=SORT_BY_RECENT)
 
             ###### ROLLING WINDOWS OF COMMENTS COUNT ######
             ### ADD LATEST COMMENTS COUNT TO THE ROLLING WINDOW
@@ -385,7 +381,7 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
                     logging.info("[Youtube] [RATE LIMITE PROTECTION] The rolling window of comments count is full of 0s. Stopping the scraping iteration...")
                     break
         except Exception as e:      
-            logging.exception(f"[Youtube] get_comments_from_url - error: {e}")
+            logging.exception(f"[Youtube] YT_COMMENT_DLOADER_ - ERROR: {e}")
 
         nb_comments = len(comments_list)
         nb_comments_checked += nb_comments
@@ -489,9 +485,11 @@ def convert_spaces_to_plus(input_string):
     return input_string.replace(" ", "+")
 
 async def query(parameters: dict) -> AsyncGenerator[Item, None]:
+    global YT_COMMENT_DLOADER_
     yielded_items = 0
     max_oldness_seconds, maximum_items_to_collect, min_post_length, probability_to_select_default_kws, max_total_comments_to_check  = read_parameters(parameters)
     selected_keyword = ""
+    YT_COMMENT_DLOADER_ = YoutubeCommentDownloader()
     
     content_map = {}
     await asyncio.sleep(1)

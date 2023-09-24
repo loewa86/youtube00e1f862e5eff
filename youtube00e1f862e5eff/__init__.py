@@ -37,32 +37,34 @@ except Exception as e:
 - that's all folks
 """
 
+
+NB_AJAX_CONSECUTIVE_MAX_TRIALS = 15
+REQUEST_TIMEOUT = 10
+POST_REQUEST_TIMEOUT = 5
+SORT_BY_POPULAR = 0
+SORT_BY_RECENT = 1
+
+
 YOUTUBE_VIDEO_URL = 'https://www.youtube.com/watch?v={youtube_id}'
 YOUTUBE_CONSENT_URL = 'https://consent.youtube.com/save'
 
 USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36'
 
-NB_AJAX_CONSECUTIVE_MAX_TRIALS = 15
-REQUEST_TIMEOUT = 10
-POST_REQUEST_TIMEOUT = 4
 SORT_BY_POPULAR = 0
 SORT_BY_RECENT = 1
-
 
 YT_CFG_RE = r'ytcfg\.set\s*\(\s*({.+?})\s*\)\s*;'
 YT_INITIAL_DATA_RE = r'(?:window\s*\[\s*["\']ytInitialData["\']\s*\]|ytInitialData)\s*=\s*({.+?})\s*;\s*(?:var\s+meta|</script|\n)'
 YT_HIDDEN_INPUT_RE = r'<input\s+type="hidden"\s+name="([A-Za-z0-9_]+)"\s+value="([A-Za-z0-9_\-\.]*)"\s*(?:required|)\s*>'
-
 
 class YoutubeCommentDownloader:
 
     def __init__(self):
         self.session = requests.Session()
         self.session.headers['User-Agent'] = USER_AGENT
-        self.session.cookies.set('CONSENT', 'YES+cb', domain='.youtube.com')                
-        self.MAX_ITERATIONS_CONTINUATIONS_AJAX = 10000
+        self.session.cookies.set('CONSENT', 'YES+cb', domain='.youtube.com')
 
-    def ajax_request(self, endpoint, ytcfg, retries=5, sleep=7):
+    def ajax_request(self, endpoint, ytcfg, retries=5, sleep=20):
         url = 'https://www.youtube.com' + endpoint['commandMetadata']['webCommandMetadata']['apiUrl']
 
         data = {'context': ytcfg['INNERTUBE_CONTEXT'],
@@ -75,20 +77,19 @@ class YoutubeCommentDownloader:
             if response.status_code in [403, 413]:
                 return {}
             else:
-                # print("Response status code: %d. Retrying in %d seconds" % (response.status_code, sleep))
                 time.sleep(sleep)
 
     def get_comments(self, youtube_id, *args, **kwargs):
         return self.get_comments_from_url(YOUTUBE_VIDEO_URL.format(youtube_id=youtube_id), *args, **kwargs)
 
-    def get_comments_from_url(self, youtube_url, sort_by=SORT_BY_RECENT, language=None, sleep=0.25):
+    def get_comments_from_url(self, youtube_url, sort_by=SORT_BY_RECENT, language=None, sleep=.1):
         response = self.session.get(youtube_url, timeout=REQUEST_TIMEOUT)
 
         if 'consent' in str(response.url):
             # We may get redirected to a separate page for cookie consent. If this happens we agree automatically.
             params = dict(re.findall(YT_HIDDEN_INPUT_RE, response.text))
             params.update({'continue': youtube_url, 'set_eom': False, 'set_ytc': True, 'set_apyt': True})
-            response = self.session.post(YOUTUBE_CONSENT_URL, params=params, timeout=POST_REQUEST_TIMEOUT)
+            response = self.session.post(YOUTUBE_CONSENT_URL, params=params)
 
         html = response.text
         ytcfg = json.loads(self.regex_search(html, YT_CFG_RE, default=''))
@@ -121,9 +122,8 @@ class YoutubeCommentDownloader:
             continuation = continuations.pop()
             response = self.ajax_request(continuation, ytcfg)
 
-            if not response or self.MAX_ITERATIONS_CONTINUATIONS_AJAX == 0:
+            if not response:
                 break
-            self.MAX_ITERATIONS_CONTINUATIONS_AJAX -= 1
 
             error = next(self.search_dict(response, 'externalErrorMessage'), None)
             if error:
@@ -166,9 +166,8 @@ class YoutubeCommentDownloader:
                 )
                 if paid:
                     result['paid'] = paid
-                
+
                 yield result
-            # print("Sleeping for %s seconds" % sleep)
             time.sleep(sleep)
 
     @staticmethod
@@ -189,7 +188,6 @@ class YoutubeCommentDownloader:
                         stack.append(value)
             elif isinstance(current_item, list):
                 stack.extend(current_item)
-                
 """
 - Fetch https://www.youtube.com/results?search_query={KEYWORD} example: https://www.youtube.com/results?search_query=bitcoin
 - Get all video URLs + their titles
@@ -304,16 +302,17 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
     if script_tag:
         await asyncio.sleep(0.1) 
         # Extract the JSON content
-        json_str = script_tag.text
+        json_str = str(script_tag)
         start_index = json_str.find('var ytInitialData = ') + len('var ytInitialData = ')
         end_index = json_str.rfind('};') + 1
         json_data_str = json_str[start_index:end_index]
+
         try:
             # Parse the JSON data
             data = json.loads(json_data_str)
-
             # Extract titles and URLs
             if 'contents' in data:
+                logging.info("[Youtube] Parsing search page: raw contents found...")
                 primary_contents = data['contents']['twoColumnSearchResultsRenderer']['primaryContents']
                 for item in primary_contents['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents']:
                     if 'videoRenderer' in item:
@@ -323,9 +322,10 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
                         full_url = f"https://www.youtube.com{url_suffix}"
                         urls.append(full_url)
                         titles.append(title)
+                        logging.info(f"[Youtube] Video URL found = {full_url} and title: {title}")
 
         except json.JSONDecodeError:
-            logging.info("[Youtube] Invalid JSON data in var ytInitialData.")
+            logging.exception("[Youtube] Invalid JSON data in var ytInitialData.")
     else:
         logging.info("[Youtube] No ytInitialData found.")
 
@@ -337,6 +337,8 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
     yielded_items = 0
     nb_comments_checked = 0
     urls = extract_url_parts(urls)
+    # shuffle the urls
+    random.shuffle(urls)
     for url, title in zip(urls, titles):
         await asyncio.sleep(1) 
         # skip URL randomly with 10% chance
@@ -359,8 +361,8 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
                 else:
                     break
                 # compute the sleep time
-            random_inter_sleep = round(3 + nb_zeros**1.7,0) ## 1.5 is the exponent
-            logging.info(f"[Youtube] [RATE LIMITE PREVENTION] Waiting  {random_inter_sleep} seconds...")
+            random_inter_sleep = round(1 + nb_zeros**1.3,0) ## 1.5 is the exponent
+            logging.info(f"[Youtube] [soft rate limit] Waiting  {random_inter_sleep} seconds...")
             await asyncio.sleep(random_inter_sleep)
         ###################################################################
 
@@ -512,7 +514,7 @@ async def query(parameters: dict) -> AsyncGenerator[Item, None]:
             else:
                 content_map[item['content']] = True
             # check if the content is not too short
-            if len(item.content) < min_post_length:
+            if len(item['content']) < min_post_length:
                 continue
             yielded_items += 1
             yield item

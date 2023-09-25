@@ -335,10 +335,14 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
     nb_comments_checked = 0
 
     urls = extract_url_parts(urls)
-    # shuffle the urls and titles together mapped 
-    urlstitles = list(zip(urls, titles))
-    random.shuffle(urlstitles)
-    urls, titles = zip(*urlstitles)
+    try:
+        # shuffle the urls and titles together mapped 
+        urlstitles = list(zip(urls, titles))
+        random.shuffle(urlstitles)
+        urls, titles = zip(*urlstitles)
+    except Exception as e:
+        logging.exception(f"[Youtube] zip(*urlstitles) error: {e}")
+        return
     
     for url, title in zip(urls, titles):
         await asyncio.sleep(1) 
@@ -391,6 +395,10 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
                     break
         except Exception as e:      
             logging.exception(f"[Youtube] YT_COMMENT_DLOADER_ - ERROR: {e}")
+            # Wait for a random amount of time between 10 and 30 seconds
+            random_inter_sleep = round(10 + random.random()*20,1)
+            logging.info(f"[Youtube] Waiting  {random_inter_sleep} seconds after the error...")
+            await asyncio.sleep(random_inter_sleep)
 
         for comment in comments_list:
             try:

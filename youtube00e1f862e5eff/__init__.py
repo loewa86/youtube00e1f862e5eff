@@ -37,7 +37,7 @@ except Exception as e:
 - that's all folks
 """
 MAX_TOTAL_COMMENTS_TO_CHECK = 500
-PROBABILITY_ADDING_SUFFIX = 0.50
+PROBABILITY_ADDING_SUFFIX = 0.80
 PROBABILITY_DEFAULT_KEYWORD = 0.33
 
 DEFAULT_OLDNESS_SECONDS = 360
@@ -127,7 +127,7 @@ class YoutubeCommentDownloader:
     def get_comments(self, youtube_id, *args, **kwargs):
         return self.get_comments_from_url(YOUTUBE_VIDEO_URL.format(youtube_id=youtube_id), *args, **kwargs)
 
-    def get_comments_from_url(self, youtube_url, sort_by=SORT_BY_RECENT, language=None, sleep=.1):
+    def get_comments_from_url(self, youtube_url, sort_by=SORT_BY_RECENT, language=None, sleep=.1, limit=100, max_oldness_seconds=3600):
         response = self.session.get(youtube_url, timeout=REQUEST_TIMEOUT)
 
         if 'consent' in str(response.url):
@@ -163,7 +163,13 @@ class YoutubeCommentDownloader:
             raise RuntimeError('Failed to set sorting')
         continuations = [sort_menu[sort_by]['serviceEndpoint']]
 
+        comment_counter = 0
+        old_comment_counter = 0
+        break_condition = False
         while continuations:
+            if break_condition:
+                break
+
             continuation = continuations.pop()
             response = self.ajax_request(continuation, ytcfg)
 
@@ -212,6 +218,20 @@ class YoutubeCommentDownloader:
                 if paid:
                     result['paid'] = paid
 
+                comment_counter += 1
+                # break if we have enough comments
+                if comment_counter >= limit:
+                    logging.info(f"[Youtube] Comment limit reached: {limit} newest comments found. Moving on...")
+                    break_condition = True
+                    break
+                # break if the comment is too old
+                if result['time_parsed'] < time.time() - max_oldness_seconds:
+                    old_comment_counter += 1
+                    if old_comment_counter > 10:
+                        logging.info(f"[Youtube] The most recent comments are too old, moving on...")
+                        break_condition = True
+                    break
+
                 yield result
             time.sleep(sleep)
 
@@ -259,15 +279,19 @@ def convert_timestamp(timestamp):
     return formatted_dt
 
 def randomly_add_search_filter(input_URL, p):
-    suffixes = [
-        "&sp=CAI%253D",      # newest_videos_suffix
-        "&sp=CAASAhAB",      # relevance_videos_suffix
-        "&sp=EgQIARAB",      # last_hour_videos_suffix
-        "&sp=EgQIAhAB"       # last_day_videos_suffix
-    ]
+    # dict mapping suffixes with what they do
+    suffixes_dict = {
+        "&sp=CAI%253D": "newest videos",
+        "&sp=CAASAhAB": "relevant videos",
+        "&sp=EgQIARAB": "last hour videos",
+        "&sp=EgQIAhAB": "last day videos",
+        "&sp=EgQIAxAB": "last week videos",
+    }
+    suffixes_list = list(suffixes_dict.keys())
     if random.random() < p:
         # Choose one of the suffixes based on probability distribution
-        chosen_suffix = random.choices(suffixes, weights=[0.10, 0.10, 0.20, 0.60])[0]
+        chosen_suffix = random.choices(suffixes_list, weights=[0.10, 0.15, 0.25, 0.25, 0.25])[0]
+        logging.info(f"[Youtube] Adding search filter to URL:  {suffixes_dict[chosen_suffix]}")
         return input_URL + chosen_suffix
     else:
         return input_URL
@@ -341,7 +365,11 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
         random.shuffle(urlstitles)
         urls, titles = zip(*urlstitles)
     except Exception as e:
-        logging.exception(f"[Youtube] zip(*urlstitles) error: {e}")
+        # if urls or titles are empty, zip will throw an error
+        if len(urls) == 0 or len(titles) == 0:
+            logging.info(f"[Youtube] urls or titles is empty, skipping...")
+        else:
+            logging.exception(f"[Youtube] zip(*urlstitles) error: {e}")
         return
     
     for url, title in zip(urls, titles):
@@ -373,15 +401,15 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
 
         try:
             logging.info(f"[Youtube] Getting ...{url}")
-            comments_list = YT_COMMENT_DLOADER_.get_comments_from_url(url, sort_by=SORT_BY_RECENT)
+            comments_list = YT_COMMENT_DLOADER_.get_comments_from_url(url, sort_by=SORT_BY_RECENT, max_oldness_seconds=max_oldness_seconds)
 
             ###### ROLLING WINDOWS OF COMMENTS COUNT ######
             ### ADD LATEST COMMENTS COUNT TO THE ROLLING WINDOW
             # turn generator into list
             comments_list = list(comments_list)
             nb_comments = len(comments_list)
-            nb_comments_checked += nb_comments
-            logging.info(f"[Youtube] checking the {nb_comments} comments on video: {title}")
+            nb_comments_checked += nb_comments  
+            logging.info(f"[Youtube] Found {nb_comments} recent comments on video: {title}")
             last_n_video_comment_count.append(len(comments_list))
             ### REMOVE THE OLDEST COMMENTS COUNT FROM THE ROLLING WINDOW
             if len(last_n_video_comment_count) > n_rolling_size:

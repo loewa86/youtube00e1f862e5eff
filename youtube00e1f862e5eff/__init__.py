@@ -424,7 +424,7 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
         except Exception as e:      
             logging.exception(f"[Youtube] YT_COMMENT_DLOADER_ - ERROR: {e}")
             # Wait for a random amount of time between 10 and 30 seconds
-            random_inter_sleep = round(10 + random.random()*20,1)
+            random_inter_sleep = round(3 + random.random()*7,1)
             logging.info(f"[Youtube] Waiting  {random_inter_sleep} seconds after the error...")
             await asyncio.sleep(random_inter_sleep)
 

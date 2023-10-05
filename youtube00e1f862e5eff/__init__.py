@@ -59,6 +59,7 @@ DEFAULT_KEYWORDS = \
     "FTSE", "NYSE", "WallStreet", "money", "forex", "trading", "currency", "USD", "WarrenBuffett", "BlackRock", "Berkshire", "IPO", "Apple", "Tesla","Alphabet",
     "FBstock","debt", "bonds", "XAUUSD", "SP500", "DowJones", "satoshi", "shorts", "live", "algotrading", "tradingalgoritmico", "prorealtime", "ig", "igmarkets", 
     "win", "trading", "trader", "algorithm", "cfdauto", "algos", "bottrading", "tradingrobot", "robottrading", "prorealtimetrading", "algorithmictrading",
+     "algorand", "algorand", "algorand", "algorand", "$algo","$algo","$algo",
     "usa ", "canada ", "denmark", "russia", "japan", "italy", "spain", "uk", "eu", "social", "iran", "war","socialism", "Biden", "democracy", "justice", "canada", "leftist",
     "SpaceX", "GreenEnergy", "CarbonCredits", "DeFiTokens", "LiquidityMining", "NFTMarketplaces",
     "Web3Platforms", "DecentralizedIdentity", "CyberThreats", "AIResearch", "DeepLearning",

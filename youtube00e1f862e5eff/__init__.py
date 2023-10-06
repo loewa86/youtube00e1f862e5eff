@@ -36,12 +36,12 @@ except Exception as e:
 - add title to comment text (as first sentence).
 - that's all folks
 """
-MAX_TOTAL_COMMENTS_TO_CHECK = 500
-PROBABILITY_ADDING_SUFFIX = 0.80
-PROBABILITY_DEFAULT_KEYWORD = 0.33
+MAX_TOTAL_COMMENTS_TO_CHECK = 150
+PROBABILITY_ADDING_SUFFIX = 0.85
+PROBABILITY_DEFAULT_KEYWORD = 0.4
 
 DEFAULT_OLDNESS_SECONDS = 360
-DEFAULT_MAXIMUM_ITEMS = 25
+DEFAULT_MAXIMUM_ITEMS = 50
 DEFAULT_MIN_POST_LENGTH = 10
 
 DEFAULT_KEYWORDS = \
@@ -438,6 +438,9 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
 
             comment_url = youtube_video_url + "&lc=" +  comment['cid']
             comment_id = comment['cid']
+            # skip if text is too small
+            if len(comment['text']) < 5:
+                continue
             # make a titled_context from the title of the video, without special characters and punctuation
             # randomly remove some words from the title & stop words        
             try:
@@ -446,12 +449,12 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
             except Exception as e:
                 logging.exception(f"[Youtube] stopwords error: {e}")
                 titled_context = title
-            if random.random() < 0.15:
+            if random.random() < 0.3:
                 # remove up to 40% of the title
-                titled_context = " ".join([word for word in title.split(" ") if random.random() > 0.4])
-            elif random.random() < 0.30:
-                # remove up to 20% of the title
                 titled_context = " ".join([word for word in title.split(" ") if random.random() > 0.3])
+            elif random.random() < 0.4:
+                # remove up to 20% of the title
+                titled_context = " ".join([word for word in title.split(" ") if random.random() > 0.2])
             # remove non alpha-numeric characters that are single words
             titled_context = " ".join([word for word in titled_context.split(" ") if word.isalnum() and len(word) > 1])
             # add a dot at the end

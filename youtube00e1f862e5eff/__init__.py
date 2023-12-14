@@ -44,7 +44,145 @@ DEFAULT_OLDNESS_SECONDS = 360
 DEFAULT_MAXIMUM_ITEMS = 50
 DEFAULT_MIN_POST_LENGTH = 10
 
-DEFAULT_KEYWORDS = [
+DEFAULT_KEYWORDS = [    
+    "Acura",
+    "Alfa Romeo",
+    "Aston Martin",
+    "Audi",
+    "Bentley",
+    "BMW",
+    "Buick",
+    "Cadillac",
+    "Chevrolet",
+    "Chrysler",
+    "Dodge",
+    "Ferrari",
+    "Fiat",
+    "Ford",
+    "Genesis",
+    "GMC",
+    "Honda",
+    "Hyundai",
+    "Infiniti",
+    "Jaguar",
+    "Jeep",
+    "Kia",
+    "Lamborghini",
+    "Land Rover",
+    "Lexus",
+    "Lincoln",
+    "Lotus",
+    "Maserati",
+    "Mazda",
+    "McLaren",
+    "Mercedes-Benz",
+    "MINI",
+    "Mitsubishi",
+    "Nissan",
+    "Porsche",
+    "Ram",
+    "Renault",
+    "Rolls-Royce",
+    "Subaru",
+    "Tesla",
+    "Toyota",
+    "Volkswagen",
+    "Volvo",    
+    "BlackRock",
+    "Vanguard",
+    "State Street",
+    "advisors",
+    "Fidelity",
+    "Fidelity Investments",
+    "Asset Management",
+    "Asset",
+    "digital asset",
+    "NASDAQ Composite",
+    "Dow Jones Industrial Average",
+    "Gold",
+    "Silver",
+    "Brent Crude",
+    "WTI Crude",
+    "EUR",
+    "US",
+    "YEN"
+    "UBS",
+    "PIMCO",
+    "schroders",
+    "aberdeen",    
+    "louis vuitton",
+    "moet Chandon",
+    "hennessy",
+    "dior",
+    "fendi",
+    "givenchy",
+    "celine",
+    "tag heuer",
+    "bvlgari",
+    "dom perignon",
+    "hublot",
+    "Zenith",        
+    "data",
+    "develop",
+    "virtual",
+    "automation",
+    "algorithm",
+    "code",
+    "machine learning",
+    "blockchain",
+    "cybersecurity",
+    "artificial",
+    "synth",
+    "synthetic",
+    "major",
+    "IoT",
+    "cloud",
+    "software",
+    "API",
+    "encryption",
+    "quantum",
+    "neural",
+    "open source",
+    "robotics",
+    "devop",
+    "5G",
+    "virtual reality",
+    "augmented reality",
+    "bioinformatics",
+    "数字資産",  # Digital Asset (Japanese)
+    "仮想",  # Virtual (Japanese)
+    "仮想通貨",  # Virtual Currency (Japanese)
+    "自動化",  # Automation (Japanese)
+    "アルゴリズム",  # Algorithm (Japanese)
+    "コード",  # Code (Japanese)
+    "機械学習",  # Machine Learning (Japanese)
+    "ブロックチェーン",  # Blockchain (Japanese)
+    "サイバーセキュリティ",  # Cybersecurity (Japanese)
+    "人工",  # Artificial (Japanese)
+    "合成",  # Synthetic (Japanese)
+    "主要",  # Major (Japanese)
+    "IoT",
+    "クラウド",  # Cloud (Japanese)
+    "ソフトウェア",  # Software (Japanese)
+    "API",
+    "暗号化",  # Encryption (Japanese)
+    "量子",  # Quantum (Japanese)
+    "ニューラルネットワーク",  # Neural Network (Japanese)
+    "オープンソース",  # Open Source (Japanese)
+    "ロボティクス",  # Robotics (Japanese)
+    "デブオプス",  # DevOps (Japanese)
+    "5G",
+    "仮想現実",  # Virtual Reality (Japanese)
+    "拡張現実",  # Augmented Reality (Japanese)
+    "バイオインフォマティクス",  # Bioinformatics (Japanese)
+    "ビッグデータ",  # Big Data (Japanese)
+    "大統領",  # President (Japanese)
+    "行政",  # Administration (Japanese)
+    "Binance",
+    "Bitcoin ETF",
+    "政治",  # Politics (Japanese)
+    "政治的",  # Political (Japanese)
+    "ダイアグラム",  # Diagram (Japanese)
     "news",
     "news",
     "news stock crypto",

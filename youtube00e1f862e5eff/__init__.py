@@ -44,7 +44,11 @@ DEFAULT_OLDNESS_SECONDS = 360
 DEFAULT_MAXIMUM_ITEMS = 50
 DEFAULT_MIN_POST_LENGTH = 10
 
-DEFAULT_KEYWORDS = [    
+DEFAULT_KEYWORDS = [   
+    "paris2024",
+    "paris2024",
+    "olympic",
+    "olympic", 
     "Acura",
     "Alfa Romeo",
     "Aston Martin",

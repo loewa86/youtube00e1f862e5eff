@@ -153,6 +153,22 @@ DEFAULT_KEYWORDS = [
     "virtual reality",
     "augmented reality",
     "bioinformatics",
+    "vote",
+    "vote",
+    "vote",
+    "election",
+    "election",
+    "election",
+    "voter",
+    "voter",
+    "official",
+    "million",
+    "club",
+    "tech",
+    "nvda",
+    "machine",
+    "generative",
+    "reinforcement",
     "数字資産",  # Digital Asset (Japanese)
     "仮想",  # Virtual (Japanese)
     "仮想通貨",  # Virtual Currency (Japanese)

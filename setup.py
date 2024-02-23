@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="youtube00e1f862e5eff",
-    version="0.0.43",
+    version="0.0.44",
     packages=find_packages(),
     install_requires=[
         "lxml",

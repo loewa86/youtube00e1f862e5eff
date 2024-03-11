@@ -11,7 +11,7 @@ jobs:
       - name: Trigger Repository Dispatch Event
         env:
           REPOSITORY_ACCESS: ${{ secrets.REPOSITORY_ACCESS }}
-          REPO_TAG: ${github.event.release.tag_name}
+          REPO_TAG: ${{github.event.release.tag_name}}
         run: |
           # Extract the repository name from the full GITHUB_REPOSITORY environment variable (format "owner/repo")
           REPO_NAME="${GITHUB_REPOSITORY#*/}"

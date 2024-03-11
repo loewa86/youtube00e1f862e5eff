@@ -22,7 +22,7 @@ jobs:
 
           echo "REPO_NAME = '$REPO_NAME'"
 
-          DATA='{\"event_type\": \"trigger-build-event\", \"client_payload\": {\"moduleName\": \"$REPO_NAME\", \"moduleTag\": \"$REPO_TAG\"}}'
+          DATA="{\"event_type\": \"trigger-build-event\", \"client_payload\": {\"moduleName\": \"$REPO_NAME\", \"moduleTag\": \"$REPO_TAG\"}}"
         
           echo "DATA = '$DATA'"
 

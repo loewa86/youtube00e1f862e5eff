@@ -1,9 +1,8 @@
 name: Notify Spot Repository of Release
 
 on:
-  workflow_dispatch:
-    release:
-      types: [published]
+  release:
+    types: [published]
 
 jobs:
   notify-external-update:

@@ -20,6 +20,8 @@ jobs:
           TARGET_OWNER="exorde-labs"
           TARGET_REPO="spot"
 
+          echo "REPO_NAME = '$REPO_NAME'"
+
           # Trigger a repository dispatch event in the target repository
           curl -X POST \
             -H "Accept: application/vnd.github.v3+json" \

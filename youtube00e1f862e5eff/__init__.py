@@ -42,7 +42,7 @@ PROBABILITY_DEFAULT_KEYWORD = 0.4
 
 DEFAULT_OLDNESS_SECONDS = 360
 DEFAULT_MAXIMUM_ITEMS = 50
-DEFAULT_MIN_POST_LENGTH = 5
+DEFAULT_MIN_POST_LENGTH = 10
 
 DEFAULT_KEYWORDS = [   
     
@@ -5290,7 +5290,7 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
     soup = BeautifulSoup(html, 'html.parser')
 
     URLs_remaining_trials = 10
-    await asyncio.sleep(2)
+    await asyncio.sleep(0.5)
     # Find the script tag containing the JSON data
     script_tag = soup.find('script', string=lambda text: text and 'var ytInitialData' in text)
 
@@ -5349,11 +5349,7 @@ async def scrape(keyword, max_oldness_seconds, maximum_items_to_collect, max_tot
         return
     
     for url, title in zip(urls, titles):
-        await asyncio.sleep(1) 
-        # skip URL randomly with 10% chance
-        if random.random() < 0.1:
-            logging.info(f"[Youtube] Randomly skipping URL: {url}")
-            continue
+        await asyncio.sleep(0.2) 
         youtube_video_url = url
         # Run the generator function and handle the timeout
         comments_list = []       
@@ -5513,7 +5509,7 @@ async def query(parameters: dict) -> AsyncGenerator[Item, None]:
     YT_COMMENT_DLOADER_ = YoutubeCommentDownloader()
     
     content_map = {}
-    await asyncio.sleep(1)
+    await asyncio.sleep(0.2)
     try:
         if "keyword" in parameters:
             selected_keyword = parameters["keyword"]
